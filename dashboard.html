@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC Sentiment & Trader Analysis | Hyperliquid</title>
+    <meta name="description" content="Exploring how Bitcoin Fear and Greed Index correlates with trader performance on Hyperliquid DEX - an analysis of 211k+ trades across 32 accounts.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.65);
+            --bg-card-hover: rgba(17, 24, 39, 0.85);
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --border-hover: rgba(255, 255, 255, 0.12);
+            --text-white: #f9fafb;
+            --text-light: #e5e7eb;
+            --text-muted: #9ca3af;
+            --text-dim: #6b7280;
+            --accent-green: #10b981;
+            --accent-green-dim: rgba(16, 185, 129, 0.12);
+            --accent-red: #ef4444;
+            --accent-red-dim: rgba(239, 68, 68, 0.12);
+            --accent-blue: #3b82f6;
+            --accent-blue-dim: rgba(59, 130, 246, 0.12);
+            --accent-purple: #8b5cf6;
+            --accent-purple-dim: rgba(139, 92, 246, 0.12);
+            --accent-cyan: #06b6d4;
+            --accent-cyan-dim: rgba(6, 182, 212, 0.12);
+            --accent-amber: #f59e0b;
+            --accent-amber-dim: rgba(245, 158, 11, 0.12);
+            --accent-indigo: #818cf8;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3);
+            --shadow-hover: 0 8px 40px rgba(0, 0, 0, 0.4);
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg-primary);
+            background-image:
+                radial-gradient(ellipse at 15% 10%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 85% 85%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-light);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .wrap {
+            max-width: 1380px;
+            margin: 0 auto;
+            padding: 20px 24px 80px;
+        }
+
+        /* ---- HEADER ---- */
+        .page-header {
+            padding: 32px 0 28px;
+            border-bottom: 1px solid var(--border-subtle);
+            margin-bottom: 28px;
+        }
+
+        .page-header h1 {
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: var(--text-white);
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+            margin-bottom: 6px;
+        }
+
+        .page-header h1 span {
+            background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .page-header .tagline {
+            font-size: 0.92rem;
+            color: var(--text-muted);
+            max-width: 700px;
+        }
+
+        /* ---- CARDS ---- */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: var(--shadow-card);
+            transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--border-hover);
+        }
+
+        .card-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-white);
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title i { color: var(--accent-cyan); font-size: 1rem; }
+
+        /* ---- KPI ROW ---- */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        @media (max-width: 900px) {
+            .kpi-row { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 500px) {
+            .kpi-row { grid-template-columns: 1fr; }
+        }
+
+        .kpi-card {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+
+        .kpi-card.green::after { background: linear-gradient(90deg, var(--accent-green), #059669); }
+        .kpi-card.blue::after { background: linear-gradient(90deg, var(--accent-blue), #2563eb); }
+        .kpi-card.purple::after { background: linear-gradient(90deg, var(--accent-purple), #7c3aed); }
+        .kpi-card.cyan::after { background: linear-gradient(90deg, var(--accent-cyan), #0891b2); }
+
+        .kpi-label {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .kpi-label i { font-size: 0.95rem; }
+
+        .kpi-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            letter-spacing: -0.02em;
+        }
+
+        .kpi-card.green .kpi-value { color: var(--accent-green); }
+        .kpi-card.blue .kpi-value { color: #60a5fa; }
+        .kpi-card.purple .kpi-value { color: #c084fc; }
+        .kpi-card.cyan .kpi-value { color: #22d3ee; }
+
+        .kpi-sub {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-top: 6px;
+        }
+
+        /* ---- GRID LAYOUTS ---- */
+        .grid-2col {
+            display: grid;
+            grid-template-columns: 1.6fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .grid-equal {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .grid-full {
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .grid-2col, .grid-equal { grid-template-columns: 1fr; }
+        }
+
+        /* ---- CHART BOX ---- */
+        .chart-area {
+            position: relative;
+            width: 100%;
+            min-height: 300px;
+        }
+
+        /* ---- SELECT / DROPDOWN ---- */
+        .custom-select {
+            background: rgba(31, 41, 55, 0.7);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-white);
+            padding: 9px 14px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-sans);
+            font-size: 0.88rem;
+            min-width: 260px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color var(--transition-fast);
+        }
+
+        .custom-select:focus { border-color: var(--accent-indigo); }
+
+        /* ---- TRADER PROFILER ---- */
+        .profiler-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .profiler-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.3fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) { .profiler-grid { grid-template-columns: 1fr; } }
+
+        .profile-left { display: flex; flex-direction: column; gap: 16px; }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .badge.win { background: var(--accent-green-dim); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.25); }
+        .badge.loss { background: var(--accent-red-dim); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.25); }
+        .badge.mixed { background: var(--accent-purple-dim); color: var(--accent-purple); border: 1px solid rgba(139,92,246,0.25); }
+
+        .addr-chip {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            background: rgba(0,0,0,0.25);
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.04);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            max-width: fit-content;
+            word-break: break-all;
+        }
+
+        .addr-chip i { cursor: pointer; transition: color var(--transition-fast); }
+        .addr-chip i:hover { color: #fff; }
+
+        .profile-quote {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.55;
+            padding-left: 12px;
+            border-left: 2px solid rgba(129, 140, 248, 0.4);
+        }
+
+        .mini-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .mini-stat {
+            background: rgba(0,0,0,0.18);
+            border: 1px solid rgba(255,255,255,0.03);
+            padding: 12px;
+            border-radius: var(--radius-sm);
+        }
+
+        .mini-stat-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            margin-bottom: 3px;
+        }
+
+        .mini-stat-val {
+            font-size: 1.15rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--text-white);
+        }
+
+        .mini-stat-val.up { color: var(--accent-green); }
+        .mini-stat-val.down { color: var(--accent-red); }
+
+        /* ---- TABS ---- */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-family: var(--font-sans);
+            font-size: 0.88rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .tab:hover { color: var(--text-white); background: rgba(255,255,255,0.03); }
+
+        .tab.on {
+            color: #fff;
+            background: rgba(99, 102, 241, 0.15);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        .coin-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .coin-kpi {
+            background: rgba(0,0,0,0.12);
+            border: 1px solid rgba(255,255,255,0.03);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            text-align: center;
+        }
+
+        .coin-kpi .lbl { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
+        .coin-kpi .num { font-size: 1.2rem; font-weight: 700; font-family: var(--font-mono); color: var(--text-white); }
+
+        /* ---- TABLE ---- */
+        .table-wrap { overflow-x: auto; }
+
+        table.lb {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        table.lb th {
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-size: 0.72rem;
+            letter-spacing: 0.06em;
+            font-weight: 600;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        table.lb td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.025);
+            white-space: nowrap;
+        }
+
+        table.lb tbody tr { transition: background var(--transition-fast); }
+        table.lb tbody tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .rank-num {
+            width: 26px; height: 26px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 0.75rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            background: rgba(255,255,255,0.06);
+            color: var(--text-muted);
+        }
+
+        .rank-gold { background: #fbbf24; color: #000; }
+        .rank-silver { background: #94a3b8; color: #000; }
+        .rank-bronze { background: #d97706; color: #000; }
+
+        .pnl-up { color: var(--accent-green); font-weight: 700; }
+        .pnl-down { color: var(--accent-red); font-weight: 700; }
+
+        /* ---- FOOTER ---- */
+        .page-footer {
+            margin-top: 48px;
+            padding: 24px 0;
+            border-top: 1px solid var(--border-subtle);
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.82rem;
+        }
+
+        .page-footer a {
+            color: var(--accent-indigo);
+            text-decoration: none;
+        }
+
+        .page-footer a:hover { text-decoration: underline; }
+
+        /* ---- TOAST ---- */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(16, 185, 129, 0.92);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 0.88rem;
+            font-weight: 600;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            z-index: 999;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+
+        /* ---- UTILITY ---- */
+        .mono { font-family: var(--font-mono); }
+        .text-green { color: var(--accent-green); }
+        .text-red { color: var(--accent-red); }
+        .text-muted { color: var(--text-muted); }
+        .fw700 { font-weight: 700; }
+        .mb-0 { margin-bottom: 0 !important; }
+    </style>
+</head>
+<body>
+
+<div class="wrap">
+
+    <!-- HEADER -->
+    <header class="page-header">
+        <h1>BTC Sentiment <span>&times;</span> Hyperliquid Trader Performance</h1>
+        <p class="tagline">
+            How does market fear and greed affect real trader outcomes? I analyzed 211k+ trades from 32 Hyperliquid accounts matched against the daily Bitcoin Fear &amp; Greed Index (May 2023 &ndash; May 2025).
+        </p>
+    </header>
+
+    <!-- KPI CARDS -->
+    <section class="kpi-row">
+        <div class="card kpi-card green">
+            <div class="kpi-label"><span>Net Profit (Closed PnL)</span><i class="fa-solid fa-arrow-trend-up"></i></div>
+            <div class="kpi-value" id="kpi-pnl">—</div>
+            <div class="kpi-sub">Sum of all closed trades across 32 wallets</div>
+        </div>
+        <div class="card kpi-card blue">
+            <div class="kpi-label"><span>Total Volume</span><i class="fa-solid fa-chart-bar"></i></div>
+            <div class="kpi-value" id="kpi-vol">—</div>
+            <div class="kpi-sub">Aggregate notional value in USD</div>
+        </div>
+        <div class="card kpi-card purple">
+            <div class="kpi-label"><span>Trades Analyzed</span><i class="fa-solid fa-layer-group"></i></div>
+            <div class="kpi-value" id="kpi-trades">—</div>
+            <div class="kpi-sub">Individual execution events</div>
+        </div>
+        <div class="card kpi-card cyan">
+            <div class="kpi-label"><span>Aggregate Win Rate</span><i class="fa-solid fa-bullseye"></i></div>
+            <div class="kpi-value" id="kpi-wr">—</div>
+            <div class="kpi-sub">Trades closing in profit / all closed trades</div>
+        </div>
+    </section>
+
+    <!-- ROW 1: TRADER PROFILER + SENTIMENT ACTIVITY -->
+    <div class="grid-2col">
+        <div class="card">
+            <div class="profiler-top">
+                <div class="card-title mb-0"><i class="fa-solid fa-user-magnifying-glass"></i> Trader Profiler</div>
+                <select class="custom-select" id="sel-trader"></select>
+            </div>
+
+            <div class="profiler-grid">
+                <div class="profile-left">
+                    <div>
+                        <div style="margin-bottom:10px;"><span class="badge win" id="p-badge">—</span></div>
+                        <div class="addr-chip">
+                            <span id="p-addr">0x00...0000</span>
+                            <i class="fa-regular fa-copy" onclick="cpAddr()" title="Copy full address"></i>
+                        </div>
+                    </div>
+                    <div class="profile-quote" id="p-desc">Select a trader to view their profile.</div>
+                    <div class="mini-stats">
+                        <div class="mini-stat"><div class="mini-stat-label">Closed PnL</div><div class="mini-stat-val up" id="p-pnl">—</div></div>
+                        <div class="mini-stat"><div class="mini-stat-label">Win Rate</div><div class="mini-stat-val" id="p-wr">—</div></div>
+                        <div class="mini-stat"><div class="mini-stat-label">Trades</div><div class="mini-stat-val" id="p-cnt">—</div></div>
+                        <div class="mini-stat"><div class="mini-stat-label">Volume</div><div class="mini-stat-val" id="p-vol">—</div></div>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-bottom:10px;">
+                        Bullish vs Bearish % by Sentiment
+                    </div>
+                    <div class="chart-area"><canvas id="chartTraderDir"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fa-solid fa-gauge-high"></i> Trading Activity by Regime</div>
+            <div class="chart-area" style="min-height:280px;"><canvas id="chartSentAct"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ROW 2: COIN ANALYSIS + GROUP COMPARISON -->
+    <div class="grid-equal">
+        <div class="card">
+            <div class="card-title"><i class="fa-solid fa-coins"></i> Coin-Level Performance</div>
+            <div class="tabs" id="coinTabs"></div>
+            <div class="coin-kpis">
+                <div class="coin-kpi"><div class="lbl">PnL</div><div class="num" id="c-pnl">—</div></div>
+                <div class="coin-kpi"><div class="lbl">Win Rate</div><div class="num" id="c-wr">—</div></div>
+                <div class="coin-kpi"><div class="lbl">Volume</div><div class="num" id="c-vol">—</div></div>
+                <div class="coin-kpi"><div class="lbl">Trades</div><div class="num" id="c-cnt">—</div></div>
+            </div>
+            <div class="chart-area" style="min-height:240px;"><canvas id="chartCoin"></canvas></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fa-solid fa-scale-balanced"></i> Profitable vs Losing Traders</div>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:16px;">
+                Mean PnL per trade under each sentiment regime. Profitable traders gain consistently; losing traders hemorrhage during Greed (avg &minus;$202/trade).
+            </p>
+            <div class="chart-area" style="min-height:270px;"><canvas id="chartGroup"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ROW 3: SCATTER -->
+    <div class="grid-full">
+        <div class="card">
+            <div class="card-title"><i class="fa-solid fa-braille"></i> Daily PnL vs Fear &amp; Greed Index</div>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px;">
+                Each bubble is one trading day. X = FGI value (0&ndash;100), Y = net closed PnL that day, bubble size = trade count.
+                The widest profit/loss swings happen at sentiment extremes.
+            </p>
+            <div class="chart-area" style="min-height:380px;"><canvas id="chartScatter"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ROW 4: LEADERBOARD -->
+    <div class="grid-full">
+        <div class="card">
+            <div class="card-title"><i class="fa-solid fa-ranking-star"></i> Trader Leaderboard</div>
+            <div class="table-wrap">
+                <table class="lb">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Address</th>
+                            <th>Trades</th>
+                            <th>Win Rate</th>
+                            <th>Volume</th>
+                            <th>Fees</th>
+                            <th>Style</th>
+                            <th>Closed PnL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lb-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="page-footer">
+        <p>Built as part of an internship task &mdash; exploring the relationship between market sentiment and trader performance on Hyperliquid.</p>
+        <p style="margin-top:6px;">Data sources: <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener">Alternative.me Fear &amp; Greed Index</a> &bull; <a href="https://hyperliquid.xyz" target="_blank" rel="noopener">Hyperliquid</a></p>
+    </footer>
+</div>
+
+<div class="toast" id="toast"><i class="fa-solid fa-check"></i> Copied!</div>
+
+<script>
+const dashboardData = {"overallMetrics": {"totalTrades": 211218, "totalPnL": 10254486.949306002, "totalVolume": 1191098773.6, "winRate": 0.8320051340012643, "totalFee": 245849.20836173077}, "sentimentStats": {"Extreme Fear": {"trades": 21400, "totalPnL": 739110.2484899999, "meanPnL": 34.53786207897196, "volume": 114484261.44, "winRate": 0.7621564482029598, "bullishCount": 14064, "bearishCount": 7333, "otherCount": 3}, "Fear": {"trades": 61837, "totalPnL": 3357155.441642, "meanPnL": 54.2903996254993, "volume": 483324789.79, "winRate": 0.8728864734299517, "bullishCount": 38323, "bearishCount": 23472, "otherCount": 42}, "Neutral": {"trades": 37686, "totalPnL": 1292920.67555, "meanPnL": 34.30771839807886, "volume": 180242063.08, "winRate": 0.8238889806707418, "bullishCount": 23127, "bearishCount": 14549, "otherCount": 10}, "Greed": {"trades": 50303, "totalPnL": 2150129.272951, "meanPnL": 42.74355948851957, "volume": 288582494.71999997, "winRate": 0.7689068954559898, "bullishCount": 21266, "bearishCount": 28973, "otherCount": 64}, "Extreme Greed": {"trades": 39992, "totalPnL": 2715171.3106730003, "meanPnL": 67.89286133909283, "volume": 124465164.57000002, "winRate": 0.8916702632714717, "bullishCount": 18636, "bearishCount": 21324, "otherCount": 32}}, "traders": [{"account": "0xb1231a4a2dd02f2276fa3c5e2a2f3436e6bfed23", "trades": 14733, "totalPnL": 2143382.597689, "meanPnL": 145.48174829898866, "winRate": 0.7910495301799649, "volume": 56543565.230000004, "fee": 15995.318251820001, "profileType": "Contrarian Master", "description": "Buys during fear, shorts during greed \u2014 classic contrarian approach that works.", "sentimentStats": {"Extreme Fear": {"trades": 739, "totalPnL": 9544.906133999999, "meanPnL": 12.915975824086603, "winRate": 0.5778894472361809, "volume": 1240856.4100000001, "bullishPct": 0.9418132611637348, "bearishPct": 0.058186738836265225}, "Fear": {"trades": 3005, "totalPnL": 93165.161357, "meanPnL": 31.003381483194676, "winRate": 0.993933265925177, "volume": 4792042.529999999, "bullishPct": 0.64891846921797, "bearishPct": 0.3500831946755408}, "Neutral": {"trades": 3457, "totalPnL": 401309.434693, "meanPnL": 116.08603838385883, "winRate": 0.8514657980456026, "volume": 9064146.190000001, "bullishPct": 0.1796355221290136, "bearishPct": 0.8197859415678334}, "Greed": {"trades": 5889, "totalPnL": 534058.2363300001, "meanPnL": 90.68742338767194, "winRate": 0.6530032467532467, "volume": 36284991.08, "bullishPct": 0.4253693326541009, "bearishPct": 0.5741212429954152}, "Extreme Greed": {"trades": 1643, "totalPnL": 1105304.859175, "meanPnL": 672.7357633444918, "winRate": 0.9384098544232923, "volume": 5161529.02, "bullishPct": 0.1978088861838101, "bearishPct": 0.8003651856360317}}}, {"account": "0x083384f897ee0f19899168e3b1bec365f52a9012", "trades": 3818, "totalPnL": 1600229.819979, "meanPnL": 419.1277684596647, "winRate": 0.7927251732101617, "volume": 61697263.970000006, "fee": 7405.312304, "profileType": "Greed Seller", "description": "Profits by shorting overextended rallies during euphoria.", "sentimentStats": {"Extreme Fear": {"trades": 100, "totalPnL": 124769.22144099999, "meanPnL": 1247.69221441, "winRate": 1.0, "volume": 1507100.8600000003, "bullishPct": 0.0, "bearishPct": 1.0}, "Fear": {"trades": 1778, "totalPnL": 1113373.547515, "meanPnL": 626.1943461839145, "winRate": 0.89058039961941, "volume": 30262439.89, "bullishPct": 0.3211473565804274, "bearishPct": 0.6788526434195725}, "Neutral": {"trades": 421, "totalPnL": 125650.11674000001, "meanPnL": 298.45633429928745, "winRate": 1.0, "volume": 9824876.71, "bullishPct": 0.0, "bearishPct": 1.0}, "Greed": {"trades": 574, "totalPnL": 276719.270187, "meanPnL": 482.08932088327526, "winRate": 0.6013071895424836, "volume": 8686990.84, "bullishPct": 0.0, "bearishPct": 1.0}, "Extreme Greed": {"trades": 945, "totalPnL": -40282.33590399999, "meanPnL": -42.62681048042327, "winRate": 0.25609756097560976, "volume": 11415855.67, "bullishPct": 0.0, "bearishPct": 1.0}}}, {"account": "0xbaaaf6571ab7d571043ff1e313a9609a10637864", "trades": 21192, "totalPnL": 940163.8062199999, "meanPnL": 44.36409051623254, "winRate": 0.9911973592077623, "volume": 68036340.24000001, "fee": 8596.705666219, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 4480, "totalPnL": 261917.97779200002, "meanPnL": 58.46383432857143, "winRate": 1.0, "volume": 19924907.689999998, "bullishPct": 1.0, "bearishPct": 0.0}, "Fear": {"trades": 12437, "totalPnL": 620872.375844, "meanPnL": 49.92139389273941, "winRate": 0.9863122712080217, "volume": 40734967.95, "bullishPct": 0.9998391895151564, "bearishPct": 0.0001608104848436118}, "Neutral": {"trades": 4270, "totalPnL": 57368.780126000005, "meanPnL": 13.435311504918033, "winRate": 1.0, "volume": 7376108.43, "bullishPct": 1.0, "bearishPct": 0.0}, "Greed": {"trades": 5, "totalPnL": 4.672458, "meanPnL": 0.9344916, "winRate": 0.3333333333333333, "volume": 356.16999999999996, "bullishPct": 1.0, "bearishPct": 0.0}, "Extreme Greed": {"trades": 0, "totalPnL": 0.0, "meanPnL": 0, "winRate": 0.0, "volume": 0.0, "bullishPct": 0, "bearishPct": 0}}}, {"account": "0x513b8629fe877bb581bf244e326a047b249c4ff1", "trades": 12236, "totalPnL": 840422.555216, "meanPnL": 68.68441935403726, "winRate": 0.8954761036118205, "volume": 420876556.36, "fee": 76424.64289168999, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 346, "totalPnL": -71121.820704, "meanPnL": -205.5543950982659, "winRate": 0.6687898089171974, "volume": 3336829.2199999997, "bullishPct": 0.8092485549132948, "bearishPct": 0.1907514450867052}, "Fear": {"trades": 5981, "totalPnL": 367166.21692399995, "meanPnL": 61.38876725029259, "winRate": 0.860248447204969, "volume": 225087033.35999998, "bullishPct": 0.680989801036616, "bearishPct": 0.31901019896338406}, "Neutral": {"trades": 2517, "totalPnL": 381330.49405000004, "meanPnL": 151.5019841279301, "winRate": 0.9667359667359667, "volume": 69726062.55, "bullishPct": 0.8156535558204211, "bearishPct": 0.18434644417957885}, "Greed": {"trades": 3169, "totalPnL": 163047.664946, "meanPnL": 51.450825164405174, "winRate": 0.9134762633996937, "volume": 121999299.13999999, "bullishPct": 0.8425370779425686, "bearishPct": 0.15746292205743137}, "Extreme Greed": {"trades": 223, "totalPnL": 0.0, "meanPnL": 0.0, "winRate": 0.0, "volume": 727332.0899999999, "bullishPct": 1.0, "bearishPct": 0.0}}}, {"account": "0xbee1707d6b44d4d52bfe19e41f8a828645437aab", "trades": 40184, "totalPnL": 836080.553077, "meanPnL": 20.806304824731235, "winRate": 0.7630703738193428, "volume": 74107810.44, "fee": 13352.89970895, "profileType": "Greed Seller", "description": "Profits by shorting overextended rallies during euphoria.", "sentimentStats": {"Extreme Fear": {"trades": 5079, "totalPnL": 30774.092128, "meanPnL": 6.059084884426068, "winRate": 0.7293259207783183, "volume": 7342854.15, "bullishPct": 0.6012994683992912, "bearishPct": 0.3987005316007088}, "Fear": {"trades": 12901, "totalPnL": 55978.79696000001, "meanPnL": 4.3391052600573605, "winRate": 0.7546993941276993, "volume": 19395677.62, "bullishPct": 0.5259282226184017, "bearishPct": 0.47407177738159834}, "Neutral": {"trades": 8143, "totalPnL": 27116.682664, "meanPnL": 3.3300605015350606, "winRate": 0.6598322460391426, "volume": 13239784.34, "bullishPct": 0.5370256662163821, "bearishPct": 0.46297433378361785}, "Greed": {"trades": 7338, "totalPnL": 243399.51314000002, "meanPnL": 33.16973468792587, "winRate": 0.7707956600361664, "volume": 17601612.08, "bullishPct": 0.25851730716816573, "bearishPct": 0.7398473698555464}, "Extreme Greed": {"trades": 6723, "totalPnL": 478811.46818500006, "meanPnL": 71.21991197159008, "winRate": 0.8869469026548673, "volume": 16527882.25, "bullishPct": 0.32247508552729437, "bearishPct": 0.6775249144727057}}}, {"account": "0x4acb90e786d897ecffb614dc822eb231b4ffb9f4", "trades": 4356, "totalPnL": 677747.0506429999, "meanPnL": 155.58931373806243, "winRate": 0.948499776085983, "volume": 39572949.25, "fee": 8025.99239419, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 986, "totalPnL": 166696.399486, "meanPnL": 169.06328548275863, "winRate": 0.9807073954983923, "volume": 10441684.57, "bullishPct": 0.9847870182555781, "bearishPct": 0.015212981744421906}, "Fear": {"trades": 1396, "totalPnL": 296781.72285799996, "meanPnL": 212.59435734813752, "winRate": 0.9532554257095158, "volume": 18227807.740000002, "bullishPct": 0.8517191977077364, "bearishPct": 0.14828080229226362}, "Neutral": {"trades": 672, "totalPnL": 97380.090931, "meanPnL": 144.91084959970237, "winRate": 1.0, "volume": 3667355.44, "bullishPct": 0.9910714285714286, "bearishPct": 0.008928571428571428}, "Greed": {"trades": 1135, "totalPnL": 96392.78318600002, "meanPnL": 84.92756227841411, "winRate": 0.9375866851595007, "volume": 6357516.120000001, "bullishPct": 0.8211453744493392, "bearishPct": 0.17797356828193833}, "Extreme Greed": {"trades": 167, "totalPnL": 20496.054182, "meanPnL": 122.73086336526946, "winRate": 0.625, "volume": 878585.3799999999, "bullishPct": 1.0, "bearishPct": 0.0}}}, {"account": "0x72743ae2822edd658c0c50608fd7c5c501b2afbd", "trades": 1590, "totalPnL": 429355.56591500004, "meanPnL": 270.0349471163522, "winRate": 0.746268656716418, "volume": 11474500.920000002, "fee": 1551.43726629, "profileType": "Contrarian Master", "description": "Buys during fear, shorts during greed \u2014 classic contrarian approach that works.", "sentimentStats": {"Extreme Fear": {"trades": 509, "totalPnL": 33979.99999999999, "meanPnL": 66.75834970530451, "winRate": 1.0, "volume": 3177278.1900000004, "bullishPct": 0.8074656188605108, "bearishPct": 0.1925343811394892}, "Fear": {"trades": 311, "totalPnL": -58219.752261, "meanPnL": -187.20177575884244, "winRate": 0.32051282051282054, "volume": 1330382.25, "bullishPct": 0.27009646302250806, "bearishPct": 0.729903536977492}, "Neutral": {"trades": 79, "totalPnL": 0.0, "meanPnL": 0.0, "winRate": 0.0, "volume": 106000.01000000002, "bullishPct": 1.0, "bearishPct": 0.0}, "Greed": {"trades": 593, "totalPnL": 453595.318176, "meanPnL": 764.9162195210793, "winRate": 0.6988847583643123, "volume": 5049640.49, "bullishPct": 0.3288364249578415, "bearishPct": 0.6711635750421585}, "Extreme Greed": {"trades": 98, "totalPnL": 0.0, "meanPnL": 0.0, "winRate": 0.0, "volume": 1811199.9800000002, "bullishPct": 0.0, "bearishPct": 1.0}}}, {"account": "0x430f09841d65beb3f27765503d0f850b8bce7713", "trades": 1237, "totalPnL": 416541.872341, "meanPnL": 336.735547567502, "winRate": 1.0, "volume": 2966109.2199999997, "fee": 747.0069310000001, "profileType": "Balanced Scalper", "description": "Takes quick profits in both directions across all sentiment regimes.", "sentimentStats": {"Extreme Fear": {"trades": 79, "totalPnL": 0.0, "meanPnL": 0.0, "winRate": 0.0, "volume": 440050.95, "bullishPct": 1.0, "bearishPct": 0.0}, "Fear": {"trades": 237, "totalPnL": 5615.052102, "meanPnL": 23.692202962025316, "winRate": 1.0, "volume": 601013.3300000001, "bullishPct": 0.3924050632911392, "bearishPct": 0.5738396624472574}, "Neutral": {"trades": 134, "totalPnL": 58961.37973, "meanPnL": 440.0102964925373, "winRate": 1.0, "volume": 625897.45, "bullishPct": 0.9776119402985075, "bearishPct": 0.0}, "Greed": {"trades": 772, "totalPnL": 227680.491734, "meanPnL": 294.922916753886, "winRate": 1.0, "volume": 1174862.15, "bullishPct": 0.7448186528497409, "bearishPct": 0.24093264248704663}, "Extreme Greed": {"trades": 15, "totalPnL": 124284.948775, "meanPnL": 8285.663251666667, "winRate": 1.0, "volume": 124285.34, "bullishPct": 0.0, "bearishPct": 1.0}}}, {"account": "0x75f7eeb85dc639d5e99c78f95393aa9a5f1170d4", "trades": 9893, "totalPnL": 379095.406711, "meanPnL": 38.3195599627009, "winRate": 0.9263279445727483, "volume": 25729497.24, "fee": 2595.2591416800005, "profileType": "Balanced Scalper", "description": "Takes quick profits in both directions across all sentiment regimes.", "sentimentStats": {"Extreme Fear": {"trades": 316, "totalPnL": 25672.838055, "meanPnL": 81.24315840189874, "winRate": 0.993127147766323, "volume": 1079447.85, "bullishPct": 0.4177215189873418, "bearishPct": 0.5822784810126582}, "Fear": {"trades": 1664, "totalPnL": 49364.275663, "meanPnL": 29.66603104747596, "winRate": 0.8658210947930574, "volume": 3316716.2299999995, "bullishPct": 0.5480769230769231, "bearishPct": 0.4519230769230769}, "Neutral": {"trades": 1464, "totalPnL": -2605.9564709999995, "meanPnL": -1.7800249118852456, "winRate": 0.87468671679198, "volume": 2645447.29, "bullishPct": 0.4023224043715847, "bearishPct": 0.5976775956284153}, "Greed": {"trades": 2618, "totalPnL": 95937.394195, "meanPnL": 36.64529953972498, "winRate": 0.9441964285714286, "volume": 6523818.28, "bullishPct": 0.45110771581359815, "bearishPct": 0.5488922841864018}, "Extreme Greed": {"trades": 3831, "totalPnL": 210726.85526900002, "meanPnL": 55.005704847037336, "winRate": 0.953407105416424, "volume": 12164067.59, "bullishPct": 0.5210127903941529, "bearishPct": 0.47898720960584706}}}, {"account": "0x72c6a4624e1dffa724e6d00d64ceae698af892a0", "trades": 1424, "totalPnL": 360539.51002900006, "meanPnL": 253.18785816643262, "winRate": 0.7741935483870968, "volume": 2962475.47, "fee": 281.49884416000003, "profileType": "Greed Seller", "description": "Profits by shorting overextended rallies during euphoria.", "sentimentStats": {"Extreme Fear": {"trades": 221, "totalPnL": 198900.56161000003, "meanPnL": 900.0025412217196, "winRate": 0.49732620320855614, "volume": 577683.5599999999, "bullishPct": 0.1583710407239819, "bearishPct": 0.8416289592760181}, "Fear": {"trades": 431, "totalPnL": 144514.3446, "meanPnL": 335.30010348027844, "winRate": 0.9114754098360656, "volume": 631747.95, "bullishPct": 0.2505800464037123, "bearishPct": 0.7494199535962877}, "Neutral": {"trades": 57, "totalPnL": -4526.698469, "meanPnL": -79.41576261403509, "winRate": 0.0, "volume": 141251.22, "bullishPct": 0.7192982456140351, "bearishPct": 0.2807017543859649}, "Greed": {"trades": 488, "totalPnL": 21077.716999999997, "meanPnL": 43.19204303278688, "winRate": 1.0, "volume": 1023144.6299999999, "bullishPct": 0.0, "bearishPct": 1.0}, "Extreme Greed": {"trades": 227, "totalPnL": 573.585288, "meanPnL": 2.526807436123348, "winRate": 1.0, "volume": 588648.11, "bullishPct": 0.07048458149779736, "bearishPct": 0.9295154185022027}}}, {"account": "0x4f93fead39b70a1824f981a54d4e55b278e9f760", "trades": 7584, "totalPnL": 308975.869716, "meanPnL": 40.740489150316456, "winRate": 0.9267548321464903, "volume": 129672529.28, "fee": 40724.467403, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 371, "totalPnL": 74346.546606, "meanPnL": 200.39500432884097, "winRate": 1.0, "volume": 9319233.83, "bullishPct": 0.8274932614555256, "bearishPct": 0.1725067385444744}, "Fear": {"trades": 1156, "totalPnL": -19126.158063999996, "meanPnL": -16.545119432525947, "winRate": 0.8616352201257862, "volume": 17929601.08, "bullishPct": 0.8451557093425606, "bearishPct": 0.15397923875432526}, "Neutral": {"trades": 1277, "totalPnL": 45514.323221, "meanPnL": 35.64160001644479, "winRate": 0.9494773519163763, "volume": 21862924.689999998, "bullishPct": 0.6758026624902115, "bearishPct": 0.32341425215348474}, "Greed": {"trades": 2334, "totalPnL": 79023.47149299999, "meanPnL": 33.85752848886032, "winRate": 0.944640753828033, "volume": 34783947.19, "bullishPct": 0.7485004284490145, "bearishPct": 0.24293059125964012}, "Extreme Greed": {"trades": 2446, "totalPnL": 129217.68646, "meanPnL": 52.82816290269828, "winRate": 0.9168539325842696, "volume": 45776822.49, "bullishPct": 0.6860179885527392, "bearishPct": 0.31398201144726084}}}, {"account": "0xbd5fead7180a9c139fa51a103cb6a2ce86ddb5c3", "trades": 2641, "totalPnL": 220519.06185300002, "meanPnL": 83.49831952025748, "winRate": 0.7349192863211554, "volume": 20737391.709999997, "fee": 4773.09848443, "profileType": "Greed Seller", "description": "Profits by shorting overextended rallies during euphoria.", "sentimentStats": {"Extreme Fear": {"trades": 387, "totalPnL": 37712.523409, "meanPnL": 97.44838090180879, "winRate": 0.5672514619883041, "volume": 3876163.91, "bullishPct": 0.2713178294573643, "bearishPct": 0.7286821705426356}, "Fear": {"trades": 1181, "totalPnL": 236797.72773699998, "meanPnL": 200.50612001439455, "winRate": 0.8414285714285714, "volume": 10712789.219999999, "bullishPct": 0.5055038103302286, "bearishPct": 0.4944961896697714}, "Neutral": {"trades": 413, "totalPnL": -90302.55371799998, "meanPnL": -218.65025113317188, "winRate": 0.4563758389261745, "volume": 4416024.05, "bullishPct": 0.423728813559322, "bearishPct": 0.576271186440678}, "Greed": {"trades": 350, "totalPnL": 30258.203855, "meanPnL": 86.45201101428572, "winRate": 0.85, "volume": 839231.03, "bullishPct": 0.02, "bearishPct": 0.98}, "Extreme Greed": {"trades": 310, "totalPnL": 6053.160570000001, "meanPnL": 19.526324419354843, "winRate": 0.45614035087719296, "volume": 893183.5, "bullishPct": 0.06451612903225806, "bearishPct": 0.9354838709677419}}}, {"account": "0x420ab45e0bd8863569a5efbb9c05d91f40624641", "trades": 383, "totalPnL": 199505.59273200002, "meanPnL": 520.9023308929504, "winRate": 1.0, "volume": 1987527.61, "fee": 267.967088979, "profileType": "Greed Seller", "description": "Profits by shorting overextended rallies during euphoria.", "sentimentStats": {"Extreme Fear": {"trades": 61, "totalPnL": 9461.082288, "meanPnL": 155.09970963934427, "winRate": 1.0, "volume": 149251.28999999998, "bullishPct": 0.0, "bearishPct": 1.0}, "Fear": {"trades": 98, "totalPnL": 99648.278349, "meanPnL": 1016.8191668265306, "winRate": 1.0, "volume": 617413.63, "bullishPct": 0.23469387755102042, "bearishPct": 0.7653061224489796}, "Neutral": {"trades": 48, "totalPnL": 74293.663505, "meanPnL": 1547.7846563541668, "winRate": 1.0, "volume": 202833.43, "bullishPct": 0.0, "bearishPct": 1.0}, "Greed": {"trades": 68, "totalPnL": 12082.95, "meanPnL": 177.69044117647059, "winRate": 1.0, "volume": 670213.1399999999, "bullishPct": 0.0, "bearishPct": 1.0}, "Extreme Greed": {"trades": 108, "totalPnL": 4019.61859, "meanPnL": 37.21869064814815, "winRate": 1.0, "volume": 347816.12000000005, "bullishPct": 0.12037037037037036, "bearishPct": 0.8796296296296297}}}, {"account": "0x2c229d22b100a7beb69122eed721cee9b24011dd", "trades": 3239, "totalPnL": 168658.00499400002, "meanPnL": 52.071011112689106, "winRate": 0.8174757281553398, "volume": 10166880.2, "fee": 3108.1967219999997, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 112, "totalPnL": 11415.247787, "meanPnL": 101.92185524107143, "winRate": 1.0, "volume": 277460.03, "bullishPct": 1.0, "bearishPct": 0.0}, "Fear": {"trades": 381, "totalPnL": 3979.190771999999, "meanPnL": 10.444070267716533, "winRate": 0.6179775280898876, "volume": 584523.8600000001, "bullishPct": 1.0, "bearishPct": 0.0}, "Neutral": {"trades": 1015, "totalPnL": 42292.843076000005, "meanPnL": 41.6678256906404, "winRate": 0.8613569321533924, "volume": 3242893.15, "bullishPct": 1.0, "bearishPct": 0.0}, "Greed": {"trades": 253, "totalPnL": 20075.672949, "meanPnL": 79.35048596442688, "winRate": 0.8203592814371258, "volume": 1022433.7599999999, "bullishPct": 1.0, "bearishPct": 0.0}, "Extreme Greed": {"trades": 1478, "totalPnL": 90895.05041, "meanPnL": 61.49868092692828, "winRate": 0.8277841561423651, "volume": 5039569.399999999, "bullishPct": 0.9986468200270636, "bearishPct": 0.0013531799729364006}}}, {"account": "0x28736f43f1e871e6aa8b1148d38d4994275d72c4", "trades": 13311, "totalPnL": 132464.814554, "meanPnL": 9.951529904139434, "winRate": 0.8620791494388659, "volume": 6757022.1, "fee": 2218.3673664509, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 574, "totalPnL": -25666.012284, "meanPnL": -44.71430711498258, "winRate": 0.5935251798561151, "volume": 463208.61, "bullishPct": 0.7491289198606271, "bearishPct": 0.24738675958188153}, "Fear": {"trades": 1399, "totalPnL": 13422.524859000001, "meanPnL": 9.594370878484632, "winRate": 0.8945022288261516, "volume": 917809.0700000001, "bullishPct": 0.8649035025017869, "bearishPct": 0.13080771979985703}, "Neutral": {"trades": 887, "totalPnL": 5505.749364, "meanPnL": 6.207158245772266, "winRate": 0.9366515837104072, "volume": 609457.49, "bullishPct": 0.7542277339346111, "bearishPct": 0.24577226606538896}, "Greed": {"trades": 2970, "totalPnL": 31192.591971, "meanPnL": 10.50255621919192, "winRate": 0.925, "volume": 1489279.85, "bullishPct": 0.560942760942761, "bearishPct": 0.43872053872053873}, "Extreme Greed": {"trades": 7481, "totalPnL": 108009.960644, "meanPnL": 14.437904109611015, "winRate": 0.8441228738258442, "volume": 3277267.08, "bullishPct": 0.478010961101457, "bearishPct": 0.5217216949605668}}}, {"account": "0x92f17e8d81a944691c10e753af1b1baae1a2cd0d", "trades": 3052, "totalPnL": 126578.942134, "meanPnL": 41.47409637418087, "winRate": 0.976457399103139, "volume": 10992355.74, "fee": 2821.95879926, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 68, "totalPnL": 3425.9609499999997, "meanPnL": 50.38177867647058, "winRate": 1.0, "volume": 653351.5000000001, "bullishPct": 0.4117647058823529, "bearishPct": 0.5882352941176471}, "Fear": {"trades": 191, "totalPnL": -621.54506, "meanPnL": -3.254162617801047, "winRate": 0.0, "volume": 1513049.15, "bullishPct": 1.0, "bearishPct": 0.0}, "Neutral": {"trades": 45, "totalPnL": 0.0, "meanPnL": 0.0, "winRate": 0.0, "volume": 426667.97, "bullishPct": 1.0, "bearishPct": 0.0}, "Greed": {"trades": 1199, "totalPnL": 60254.251561, "meanPnL": 50.253754429524605, "winRate": 0.9665871121718377, "volume": 4734259.0, "bullishPct": 0.3577981651376147, "bearishPct": 0.6422018348623854}, "Extreme Greed": {"trades": 1549, "totalPnL": 63520.27468300001, "meanPnL": 41.007278684958045, "winRate": 1.0, "volume": 3665028.12, "bullishPct": 0.8986442866365397, "bearishPct": 0.10071013557133635}}}, {"account": "0x6d6a4b953f202f8df5bed40692e7fd865318264a", "trades": 975, "totalPnL": 108731.216772, "meanPnL": 111.51919668923077, "winRate": 0.9882629107981221, "volume": 728057.51, "fee": 186.8360769324, "profileType": "Greed Seller", "description": "Profits by shorting overextended rallies during euphoria.", "sentimentStats": {"Extreme Fear": {"trades": 143, "totalPnL": 2037.258612, "meanPnL": 14.24656372027972, "winRate": 0.9565217391304348, "volume": 146503.36, "bullishPct": 0.2727272727272727, "bearishPct": 0.7272727272727273}, "Fear": {"trades": 359, "totalPnL": 2040.359057, "meanPnL": 5.683451412256267, "winRate": 0.9634146341463414, "volume": 305149.82999999996, "bullishPct": 0.2924791086350975, "bearishPct": 0.6991643454038997}, "Neutral": {"trades": 61, "totalPnL": 1258.120923, "meanPnL": 20.624933163934426, "winRate": 1.0, "volume": 37444.55, "bullishPct": 0.4426229508196721, "bearishPct": 0.5573770491803278}, "Greed": {"trades": 241, "totalPnL": 30203.401038000004, "meanPnL": 125.32531551037346, "winRate": 1.0, "volume": 132946.9, "bullishPct": 0.34854771784232363, "bearishPct": 0.6514522821576764}, "Extreme Greed": {"trades": 171, "totalPnL": 73192.07714200001, "meanPnL": 428.0238429356726, "winRate": 1.0, "volume": 106012.87, "bullishPct": 0.10526315789473684, "bearishPct": 0.8947368421052632}}}, {"account": "0xa0feb3725a9335f49874d7cd8eaad6be45b27416", "trades": 15605, "totalPnL": 106302.875256, "meanPnL": 6.81210350887536, "winRate": 0.9703290775040461, "volume": 19868207.979999997, "fee": 2287.9554331042, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 270, "totalPnL": 1011.258943, "meanPnL": 3.745403492592593, "winRate": 0.9838709677419355, "volume": 162539.16999999998, "bullishPct": 0.9259259259259259, "bearishPct": 0.07407407407407407}, "Fear": {"trades": 2324, "totalPnL": 12934.469345000001, "meanPnL": 5.565606430722892, "winRate": 0.9959623149394348, "volume": 2722493.0, "bullishPct": 0.9621342512908778, "bearishPct": 0.0378657487091222}, "Neutral": {"trades": 5399, "totalPnL": 9467.021637000002, "meanPnL": 1.7534768729394334, "winRate": 0.9446878422782037, "volume": 6313359.24, "bullishPct": 0.9092424523059826, "bearishPct": 0.09075754769401741}, "Greed": {"trades": 4115, "totalPnL": 35098.877549, "meanPnL": 8.529496366707168, "winRate": 0.9921428571428571, "volume": 4833683.86, "bullishPct": 0.8605103280680437, "bearishPct": 0.13948967193195624}, "Extreme Greed": {"trades": 3497, "totalPnL": 47791.24778199999, "meanPnL": 13.666356243065483, "winRate": 0.9679738562091503, "volume": 5836132.71, "bullishPct": 0.9997140406062339, "bearishPct": 0.0}}}, {"account": "0x47add9a56df66b524d5e2c1993a43cde53b6ed85", "trades": 8519, "totalPnL": 103343.716161, "meanPnL": 12.130967972884141, "winRate": 0.822003822003822, "volume": 4408828.9, "fee": 1230.8465211819, "profileType": "Greed Seller", "description": "Profits by shorting overextended rallies during euphoria.", "sentimentStats": {"Extreme Fear": {"trades": 391, "totalPnL": -14527.442518000003, "meanPnL": -37.154584445012794, "winRate": 0.5392670157068062, "volume": 224065.45999999996, "bullishPct": 0.4782608695652174, "bearishPct": 0.5217391304347826}, "Fear": {"trades": 924, "totalPnL": 9999.484228, "meanPnL": 10.821952627705627, "winRate": 0.8111888111888111, "volume": 498888.4, "bullishPct": 0.5487012987012987, "bearishPct": 0.4512987012987013}, "Neutral": {"trades": 656, "totalPnL": 4029.241688, "meanPnL": 6.142136719512195, "winRate": 0.8347826086956521, "volume": 311075.04000000004, "bullishPct": 0.4009146341463415, "bearishPct": 0.5990853658536586}, "Greed": {"trades": 3398, "totalPnL": 36566.483324, "meanPnL": 10.761178141259565, "winRate": 0.834733893557423, "volume": 1667155.83, "bullishPct": 0.23896409652736905, "bearishPct": 0.7601530311948205}, "Extreme Greed": {"trades": 3150, "totalPnL": 67275.949439, "meanPnL": 21.35744426634921, "winRate": 0.8503937007874016, "volume": 1707644.17, "bullishPct": 0.24698412698412697, "bearishPct": 0.7520634920634921}}}, {"account": "0xa520ded057a32086c40e7dd6ed4eb8efb82c00e0", "trades": 417, "totalPnL": 72846.484272, "meanPnL": 174.6918088057554, "winRate": 0.9372549019607843, "volume": 861809.3999999999, "fee": 189.93800451000004, "profileType": "Contrarian Master", "description": "Buys during fear, shorts during greed \u2014 classic contrarian approach that works.", "sentimentStats": {"Extreme Fear": {"trades": 5, "totalPnL": -961.048507, "meanPnL": -192.2097014, "winRate": 0.0, "volume": 1460.13, "bullishPct": 0.0, "bearishPct": 0.8}, "Fear": {"trades": 44, "totalPnL": -16719.913714, "meanPnL": -379.9980389545454, "winRate": 0.23076923076923078, "volume": 313640.09, "bullishPct": 0.75, "bearishPct": 0.20454545454545456}, "Neutral": {"trades": 4, "totalPnL": -53.631353999999995, "meanPnL": -13.407838499999999, "winRate": 0.0, "volume": 629.0600000000001, "bullishPct": 0.5, "bearishPct": 0.5}, "Greed": {"trades": 108, "totalPnL": 44169.810737, "meanPnL": 408.9797290462963, "winRate": 1.0, "volume": 128086.16, "bullishPct": 0.027777777777777776, "bearishPct": 0.9444444444444444}, "Extreme Greed": {"trades": 256, "totalPnL": 46411.26711, "meanPnL": 181.2940121484375, "winRate": 1.0, "volume": 417993.96, "bullishPct": 0.484375, "bearishPct": 0.515625}}}, {"account": "0xae5eacaf9c6b9111fd53034a602c192a04e082ed", "trades": 563, "totalPnL": 67845.619531, "meanPnL": 120.50731710657195, "winRate": 1.0, "volume": 1677425.7199999997, "fee": 548.72926461, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 80, "totalPnL": 622.41079, "meanPnL": 7.780134875, "winRate": 1.0, "volume": 316665.65, "bullishPct": 1.0, "bearishPct": 0.0}, "Fear": {"trades": 123, "totalPnL": 8129.3406589999995, "meanPnL": 66.09220047967479, "winRate": 1.0, "volume": 293743.3, "bullishPct": 1.0, "bearishPct": 0.0}, "Neutral": {"trades": 0, "totalPnL": 0.0, "meanPnL": 0, "winRate": 0.0, "volume": 0.0, "bullishPct": 0, "bearishPct": 0}, "Greed": {"trades": 170, "totalPnL": 38168.35486, "meanPnL": 224.51973447058822, "winRate": 1.0, "volume": 423422.33, "bullishPct": 1.0, "bearishPct": 0.0}, "Extreme Greed": {"trades": 190, "totalPnL": 20925.513222, "meanPnL": 110.13428011578948, "winRate": 1.0, "volume": 643594.44, "bullishPct": 0.6894736842105263, "bearishPct": 0.30526315789473685}}}, {"account": "0x8381e6d82f1affd39a336e143e081ef7620a3b7f", "trades": 1911, "totalPnL": 65513.65790600001, "meanPnL": 34.282395555206705, "winRate": 0.8837535014005602, "volume": 11999173.370000001, "fee": 3384.8822185800004, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 49, "totalPnL": -4825.496358, "meanPnL": -98.47951751020409, "winRate": 0.4, "volume": 289506.08, "bullishPct": 0.42857142857142855, "bearishPct": 0.5714285714285714}, "Fear": {"trades": 55, "totalPnL": 258.41533, "meanPnL": 4.698460545454545, "winRate": 1.0, "volume": 100479.48000000003, "bullishPct": 0.8, "bearishPct": 0.2}, "Neutral": {"trades": 1430, "totalPnL": 12960.109958, "meanPnL": 9.063013956643356, "winRate": 0.8822393822393823, "volume": 4130620.47, "bullishPct": 0.6244755244755245, "bearishPct": 0.37552447552447554}, "Greed": {"trades": 297, "totalPnL": 57108.91130000001, "meanPnL": 192.28589663299667, "winRate": 0.9862068965517241, "volume": 7343356.08, "bullishPct": 0.5959595959595959, "bearishPct": 0.40404040404040403}, "Extreme Greed": {"trades": 80, "totalPnL": 11.717676000000012, "meanPnL": 0.14647095000000016, "winRate": 0.2857142857142857, "volume": 135211.26, "bullishPct": 1.0, "bearishPct": 0.0}}}, {"account": "0x3f9a0aadc7f04a7c9d75dc1b5a6ddd6e36486cf6", "trades": 332, "totalPnL": 53496.247243000005, "meanPnL": 161.13327482831326, "winRate": 1.0, "volume": 1143896.46, "fee": 176.27417591699998, "profileType": "Trend Follower", "description": "Rides momentum \u2014 buys strength, shorts weakness.", "sentimentStats": {"Extreme Fear": {"trades": 19, "totalPnL": 110.55336399999999, "meanPnL": 5.818598105263157, "winRate": 1.0, "volume": 64377.46, "bullishPct": 0.0, "bearishPct": 1.0}, "Fear": {"trades": 79, "totalPnL": 4256.559308999999, "meanPnL": 53.88049758227847, "winRate": 1.0, "volume": 337546.24, "bullishPct": 0.3924050632911392, "bearishPct": 0.5822784810126582}, "Neutral": {"trades": 2, "totalPnL": 8019.163096, "meanPnL": 4009.581548, "winRate": 1.0, "volume": 63735.380000000005, "bullishPct": 0.0, "bearishPct": 0.5}, "Greed": {"trades": 26, "totalPnL": 4239.816383, "meanPnL": 163.0698608846154, "winRate": 1.0, "volume": 124084.74999999999, "bullishPct": 0.8461538461538461, "bearishPct": 0.11538461538461539}, "Extreme Greed": {"trades": 206, "totalPnL": 36870.155091, "meanPnL": 178.9813353932039, "winRate": 1.0, "volume": 554152.63, "bullishPct": 0.9514563106796117, "bearishPct": 0.04854368932038835}}}, {"account": "0x23e7a7f8d14b550961925fbfdaa92f5d195ba5bd", "trades": 7280, "totalPnL": 47885.32051399999, "meanPnL": 6.577653916758241, "winRate": 0.7736437830052808, "volume": 12035487.66, "fee": 2729.83788853, "profileType": "Trend Follower", "description": "Rides momentum \u2014 buys strength, shorts weakness.", "sentimentStats": {"Extreme Fear": {"trades": 170, "totalPnL": -4235.153050999999, "meanPnL": -24.91266500588235, "winRate": 0.8225806451612904, "volume": 366532.65, "bullishPct": 0.6352941176470588, "bearishPct": 0.36470588235294116}, "Fear": {"trades": 2622, "totalPnL": -1658.736801, "meanPnL": -0.6326227311212814, "winRate": 0.7977099236641222, "volume": 2573742.54, "bullishPct": 0.2700228832951945, "bearishPct": 0.7299771167048055}, "Neutral": {"trades": 720, "totalPnL": -11933.080124999999, "meanPnL": -16.573722395833332, "winRate": 0.6598984771573604, "volume": 1084672.1199999999, "bullishPct": 0.6277777777777778, "bearishPct": 0.37083333333333335}, "Greed": {"trades": 2943, "totalPnL": 30053.395556, "meanPnL": 10.211823158681618, "winRate": 0.7111913357400722, "volume": 6487032.05, "bullishPct": 0.6031260618416582, "bearishPct": 0.3965341488277268}, "Extreme Greed": {"trades": 825, "totalPnL": 35658.894935, "meanPnL": 43.222902951515145, "winRate": 1.0, "volume": 1523508.3, "bullishPct": 0.41454545454545455, "bearishPct": 0.576969696969697}}}, {"account": "0x8477e447846c758f5a675856001ea72298fd9cb5", "trades": 14998, "totalPnL": 43917.008976000005, "meanPnL": 2.9281910238698496, "winRate": 0.5990242415002287, "volume": 12304786.84, "fee": 3792.54309547, "profileType": "Greed Seller", "description": "Profits by shorting overextended rallies during euphoria.", "sentimentStats": {"Extreme Fear": {"trades": 539, "totalPnL": 1774.309786, "meanPnL": 3.2918548905380334, "winRate": 0.8083832335329342, "volume": 738773.05, "bullishPct": 0.4935064935064935, "bearishPct": 0.5064935064935064}, "Fear": {"trades": 1474, "totalPnL": 9299.484548, "meanPnL": 6.309012583446404, "winRate": 0.8253424657534246, "volume": 1182485.92, "bullishPct": 0.18860244233378562, "bearishPct": 0.810719131614654}, "Neutral": {"trades": 2195, "totalPnL": 808.3427169999986, "meanPnL": 0.36826547471526133, "winRate": 0.6549893842887473, "volume": 2053464.9300000002, "bullishPct": 0.09521640091116174, "bearishPct": 0.9047835990888383}, "Greed": {"trades": 6804, "totalPnL": -24036.539128, "meanPnL": -3.5327071028806585, "winRate": 0.4025549613784908, "volume": 4577661.859999999, "bullishPct": 0.07892416225749559, "bearishPct": 0.9207818930041153}, "Extreme Greed": {"trades": 3986, "totalPnL": 56071.411053, "meanPnL": 14.067087569744105, "winRate": 0.8933333333333333, "volume": 3752401.08, "bullishPct": 0.06598093326643252, "bearishPct": 0.9337681886603111}}}, {"account": "0xb899e522b5715391ae1d4f137653e7906c5e2115", "trades": 4838, "totalPnL": 22488.500821, "meanPnL": 4.648305254443986, "winRate": 0.8034835289663006, "volume": 108877041.10000001, "fee": 28643.173715000004, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 1577, "totalPnL": -33221.806818000005, "meanPnL": -21.066459618262527, "winRate": 0.6385542168674698, "volume": 32610576.830000002, "bullishPct": 0.777425491439442, "bearishPct": 0.22257450856055802}, "Fear": {"trades": 2947, "totalPnL": 51692.358711, "meanPnL": 17.540671432304038, "winRate": 0.91661594643944, "volume": 68691467.31, "bullishPct": 0.5802511028164234, "bearishPct": 0.4197488971835765}, "Neutral": {"trades": 314, "totalPnL": 4017.9489279999993, "meanPnL": 12.796015694267513, "winRate": 0.5119047619047619, "volume": 7574996.959999999, "bullishPct": 0.2961783439490446, "bearishPct": 0.7038216560509554}, "Greed": {"trades": 0, "totalPnL": 0.0, "meanPnL": 0, "winRate": 0.0, "volume": 0.0, "bullishPct": 0, "bearishPct": 0}, "Extreme Greed": {"trades": 0, "totalPnL": 0.0, "meanPnL": 0, "winRate": 0.0, "volume": 0.0, "bullishPct": 0, "bearishPct": 0}}}, {"account": "0xaf40fdc468c30116bd3307bcbf4a451a7ebf1deb", "trades": 534, "totalPnL": 21758.831753000002, "meanPnL": 40.74687594194757, "winRate": 0.7478260869565218, "volume": 4448323.26, "fee": 541.7456094464001, "profileType": "Fear Buyer", "description": "Specializes in buying dips during panic/fear periods.", "sentimentStats": {"Extreme Fear": {"trades": 17, "totalPnL": 0.0, "meanPnL": 0.0, "winRate": 0.0, "volume": 38053.979999999996, "bullishPct": 1.0, "bearishPct": 0.0}, "Fear": {"trades": 455, "totalPnL": 14542.702934, "meanPnL": 31.96198447032967, "winRate": 0.7198067632850241, "volume": 3438057.09, "bullishPct": 0.8703296703296703, "bearishPct": 0.12967032967032968}, "Neutral": {"trades": 52, "totalPnL": 7157.6835790000005, "meanPnL": 137.6477611346154, "winRate": 1.0, "volume": 954481.99, "bullishPct": 0.9807692307692307, "bearishPct": 0.019230769230769232}, "Greed": {"trades": 5, "totalPnL": 43.2005, "meanPnL": 8.6401, "winRate": 1.0, "volume": 9082.85, "bullishPct": 1.0, "bearishPct": 0.0}, "Extreme Greed": {"trades": 5, "totalPnL": 15.24474, "meanPnL": 3.048948, "winRate": 1.0, "volume": 8647.35, "bullishPct": 1.0, "bearishPct": 0.0}}}, {"account": "0x7f4f299f74eec87806a830e3caa9afa5f2b9db8f", "trades": 1559, "totalPnL": 14900.443047, "meanPnL": 9.557692781911483, "winRate": 0.9450402144772118, "volume": 5844484.45, "fee": 780.21690296, "profileType": "Balanced Scalper", "description": "Takes quick profits in both directions across all sentiment regimes.", "sentimentStats": {"Extreme Fear": {"trades": 825, "totalPnL": 3222.8221320000002, "meanPnL": 3.9064510690909096, "winRate": 0.9848866498740554, "volume": 2847955.2800000003, "bullishPct": 0.18424242424242424, "bearishPct": 0.8157575757575758}, "Fear": {"trades": 544, "totalPnL": 4036.5523189999994, "meanPnL": 7.4201329393382345, "winRate": 0.8885017421602788, "volume": 2004454.72, "bullishPct": 0.2922794117647059, "bearishPct": 0.7077205882352942}, "Neutral": {"trades": 104, "totalPnL": -395.0559780000001, "meanPnL": -3.798615173076924, "winRate": 0.8235294117647058, "volume": 643705.37, "bullishPct": 0.7115384615384616, "bearishPct": 0.28846153846153844}, "Greed": {"trades": 83, "totalPnL": 6775.291988, "meanPnL": 81.63002395180723, "winRate": 1.0, "volume": 329588.6, "bullishPct": 0.5060240963855421, "bearishPct": 0.4939759036144578}, "Extreme Greed": {"trades": 3, "totalPnL": 1260.832586, "meanPnL": 420.2775286666667, "winRate": 1.0, "volume": 18780.48, "bullishPct": 0.6666666666666666, "bearishPct": 0.3333333333333333}}}, {"account": "0x39cef799f8b69da1995852eea189df24eb5cae3c", "trades": 3589, "totalPnL": 14456.919335999999, "meanPnL": 4.02811906826414, "winRate": 0.66553480475382, "volume": 17193375.419999998, "fee": 1458.6571260700002, "profileType": "Balanced Scalper", "description": "Takes quick profits in both directions across all sentiment regimes.", "sentimentStats": {"Extreme Fear": {"trades": 1668, "totalPnL": -76179.494853, "meanPnL": -45.67115998381295, "winRate": 0.4768211920529801, "volume": 6740754.4399999995, "bullishPct": 0.22002398081534771, "bearishPct": 0.7799760191846523}, "Fear": {"trades": 1471, "totalPnL": 54685.021109, "meanPnL": 37.175405240652616, "winRate": 0.9404761904761905, "volume": 6207226.959999999, "bullishPct": 0.060503059143439834, "bearishPct": 0.9394969408565602}, "Neutral": {"trades": 272, "totalPnL": 10953.24796, "meanPnL": 40.26929397058824, "winRate": 1.0, "volume": 2965311.2899999996, "bullishPct": 0.5919117647058824, "bearishPct": 0.40808823529411764}, "Greed": {"trades": 63, "totalPnL": 10591.760255, "meanPnL": 168.12317865079365, "winRate": 0.9655172413793104, "volume": 733557.1, "bullishPct": 0.30158730158730157, "bearishPct": 0.6984126984126984}, "Extreme Greed": {"trades": 115, "totalPnL": 14406.384864999998, "meanPnL": 125.2729118695652, "winRate": 0.890625, "volume": 546525.6299999999, "bullishPct": 0.5739130434782609, "bearishPct": 0.4260869565217391}}}, {"account": "0x3998f134d6aaa2b6a5f723806d00fd2bbbbce891", "trades": 815, "totalPnL": -31203.599986000005, "meanPnL": -38.28662574969326, "winRate": 0.6508771929824562, "volume": 1409902.0, "fee": 147.07476338, "profileType": "Bottom Shorter", "description": "Shorts during capitulation, gets squeezed on bounces.", "sentimentStats": {"Extreme Fear": {"trades": 263, "totalPnL": -56967.825773000004, "meanPnL": -216.6077025589354, "winRate": 0.15508021390374332, "volume": 426110.78, "bullishPct": 0.0038022813688212928, "bearishPct": 0.9961977186311787}, "Fear": {"trades": 256, "totalPnL": -467.05889599999955, "meanPnL": -1.8244488124999982, "winRate": 0.9015544041450777, "volume": 338174.44999999995, "bullishPct": 0.11328125, "bearishPct": 0.828125}, "Neutral": {"trades": 33, "totalPnL": -1228.907104, "meanPnL": -37.23960921212121, "winRate": 0.6451612903225806, "volume": 39859.44000000001, "bullishPct": 0.6060606060606061, "bearishPct": 0.3333333333333333}, "Greed": {"trades": 102, "totalPnL": -3531.989984, "meanPnL": -34.62735278431372, "winRate": 0.9135802469135802, "volume": 156310.59, "bullishPct": 0.16666666666666666, "bearishPct": 0.7843137254901961}, "Extreme Greed": {"trades": 161, "totalPnL": 30992.181771000003, "meanPnL": 192.49802342236026, "winRate": 0.9487179487179487, "volume": 449446.74000000005, "bullishPct": 0.4161490683229814, "bearishPct": 0.5031055900621118}}}, {"account": "0x271b280974205ca63b716753467d5a371de622ab", "trades": 3809, "totalPnL": -70436.191318, "meanPnL": -18.49204287687057, "winRate": 0.7156191661481021, "volume": 33873440.42, "fee": 9280.98285, "profileType": "Bottom Shorter", "description": "Shorts during capitulation, gets squeezed on bounces.", "sentimentStats": {"Extreme Fear": {"trades": 797, "totalPnL": 16706.884912, "meanPnL": 20.96221444416562, "winRate": 0.9803921568627451, "volume": 4886973.24, "bullishPct": 0.2245922208281054, "bearishPct": 0.7754077791718946}, "Fear": {"trades": 1868, "totalPnL": 30121.910490000002, "meanPnL": 16.125219748394006, "winRate": 0.9444444444444444, "volume": 13491850.52, "bullishPct": 0.0, "bearishPct": 0.9994646680942184}, "Neutral": {"trades": 599, "totalPnL": -19038.340561, "meanPnL": -31.78354016861436, "winRate": 0.0, "volume": 4848220.23, "bullishPct": 0.0, "bearishPct": 1.0}, "Greed": {"trades": 540, "totalPnL": -100019.80637400002, "meanPnL": -185.2218636555556, "winRate": 0.43137254901960786, "volume": 10486688.129999999, "bullishPct": 0.0, "bearishPct": 0.9981481481481481}, "Extreme Greed": {"trades": 5, "totalPnL": 1793.1602149999999, "meanPnL": 358.63204299999995, "winRate": 1.0, "volume": 159708.3, "bullishPct": 0.0, "bearishPct": 1.0}}}, {"account": "0x8170715b3b381dffb7062c0298972d4727a0a63b", "trades": 4601, "totalPnL": -167621.12478099996, "meanPnL": -36.431455070854156, "winRate": 0.7522426313541222, "volume": 10143758.129999999, "fee": 1579.38545192, "profileType": "Bottom Shorter", "description": "Shorts during capitulation, gets squeezed on bounces.", "sentimentStats": {"Extreme Fear": {"trades": 159, "totalPnL": 12713.493131, "meanPnL": 79.95907629559748, "winRate": 0.8, "volume": 816051.26, "bullishPct": 0.32075471698113206, "bearishPct": 0.6792452830188679}, "Fear": {"trades": 1745, "totalPnL": 151292.73285899998, "meanPnL": 86.70070650945557, "winRate": 0.8533772652388797, "volume": 4170375.08, "bullishPct": 0.16962750716332378, "bearishPct": 0.8303724928366762}, "Neutral": {"trades": 946, "totalPnL": 47610.460743999996, "meanPnL": 50.32818260465116, "winRate": 0.8192090395480226, "volume": 2042756.6, "bullishPct": 0.4048625792811839, "bearishPct": 0.595137420718816}, "Greed": {"trades": 1653, "totalPnL": -360101.898234, "meanPnL": -217.8474883448276, "winRate": 0.7007751937984497, "volume": 2908242.6799999997, "bullishPct": 0.0, "bearishPct": 1.0}, "Extreme Greed": {"trades": 98, "totalPnL": -19135.913281, "meanPnL": -195.26442123469388, "winRate": 0.14285714285714285, "volume": 206332.51, "bullishPct": 0.1836734693877551, "bearishPct": 0.8163265306122449}}}], "coins": {"HYPE": {"trades": 68005, "totalPnL": 1948484.599761, "volume": 141990206.05, "winRate": 0.8816344381618818, "sentimentStats": {"Extreme Fear": {"trades": 10278, "totalPnL": 482083.808909, "meanPnL": 46.904437527631835, "winRate": 0.8567527830287754, "volume": 29253178.69}, "Fear": {"trades": 27951, "totalPnL": 840306.353176, "meanPnL": 30.06355240155987, "winRate": 0.8968013592376449, "volume": 63327528.27}, "Neutral": {"trades": 17324, "totalPnL": 300100.24110200006, "meanPnL": 17.322803111406145, "winRate": 0.8380182712579058, "volume": 27570986.89}, "Greed": {"trades": 6769, "totalPnL": 166307.64006499999, "meanPnL": 24.569011680455013, "winRate": 0.907942238267148, "volume": 11751723.200000001}, "Extreme Greed": {"trades": 5683, "totalPnL": 159686.55650900002, "meanPnL": 28.098989355797997, "winRate": 0.9700623700623701, "volume": 10086789.0}}}, "@107": {"trades": 29992, "totalPnL": 2783912.919016, "volume": 55760858.63, "winRate": 0.8169637655831294, "sentimentStats": {"Extreme Fear": {"trades": 1519, "totalPnL": -136085.3683, "meanPnL": -89.5887875576037, "winRate": 0.42437923250564336, "volume": 2484219.74}, "Fear": {"trades": 5462, "totalPnL": -12514.843273999995, "meanPnL": -2.2912565496155244, "winRate": 0.7622094981475244, "volume": 8182406.93}, "Neutral": {"trades": 4210, "totalPnL": 219551.95085800003, "meanPnL": 52.15010709216153, "winRate": 0.8737060041407867, "volume": 7717676.43}, "Greed": {"trades": 8398, "totalPnL": 724342.3058600001, "meanPnL": 86.25176302214814, "winRate": 0.7649861055974593, "volume": 16923981.98}, "Extreme Greed": {"trades": 10403, "totalPnL": 1988618.873872, "meanPnL": 191.1582114651543, "winRate": 0.921463491562845, "volume": 20452573.55}}}, "BTC": {"trades": 26064, "totalPnL": 868044.7326379999, "volume": 644232116.63, "winRate": 0.8305931510582251, "sentimentStats": {"Extreme Fear": {"trades": 1765, "totalPnL": 3056.840313000008, "meanPnL": 1.7319208572238005, "winRate": 0.8140929535232384, "volume": 36751523.269999996}, "Fear": {"trades": 9870, "totalPnL": 482649.64405599993, "meanPnL": 48.900673156636266, "winRate": 0.8763242745278673, "volume": 300912163.3}, "Neutral": {"trades": 4753, "totalPnL": 165980.34562699997, "meanPnL": 34.9211751792552, "winRate": 0.8625827814569537, "volume": 98386717.32}, "Greed": {"trades": 7240, "totalPnL": 115475.19154900001, "meanPnL": 15.949612092403317, "winRate": 0.7494546587722032, "volume": 164299783.89999998}, "Extreme Greed": {"trades": 2436, "totalPnL": 100882.71109299999, "meanPnL": 41.4132639954844, "winRate": 0.8457609805924413, "volume": 43881928.84}}}, "ETH": {"trades": 11158, "totalPnL": 1319978.838852, "volume": 118280994.07000001, "winRate": 0.7681713848508034, "sentimentStats": {"Extreme Fear": {"trades": 1393, "totalPnL": 274320.23069, "meanPnL": 196.92766022254128, "winRate": 0.9897959183673469, "volume": 7720053.08}, "Fear": {"trades": 2850, "totalPnL": 675064.576785, "meanPnL": 236.86476378421054, "winRate": 0.8319327731092437, "volume": 39635351.099999994}, "Neutral": {"trades": 1317, "totalPnL": 61574.088598, "meanPnL": 46.75329430372058, "winRate": 0.8150134048257373, "volume": 17590391.62}, "Greed": {"trades": 3574, "totalPnL": 351036.01291399996, "meanPnL": 98.21936567263569, "winRate": 0.5953757225433526, "volume": 37325288.1}, "Extreme Greed": {"trades": 2024, "totalPnL": -42016.070134999994, "meanPnL": -20.75892793231225, "winRate": 0.7251051893408135, "volume": 16009910.170000002}}}, "SOL": {"trades": 10691, "totalPnL": 1639555.9275059998, "volume": 125074752.06, "winRate": 0.8387673956262426, "sentimentStats": {"Extreme Fear": {"trades": 1878, "totalPnL": 105179.504312, "meanPnL": 56.00612583173589, "winRate": 0.6790266512166859, "volume": 26241359.78}, "Fear": {"trades": 3914, "totalPnL": 741594.285928, "meanPnL": 189.47222430454778, "winRate": 0.9500242600679282, "volume": 51824505.650000006}, "Neutral": {"trades": 1400, "totalPnL": 303376.19464999996, "meanPnL": 216.69728189285712, "winRate": 0.9012345679012346, "volume": 16118744.79}, "Greed": {"trades": 1586, "totalPnL": 451690.01397699997, "meanPnL": 284.7982433650693, "winRate": 0.8974358974358975, "volume": 22849528.78}, "Extreme Greed": {"trades": 1913, "totalPnL": 37715.928639, "meanPnL": 19.71559259749085, "winRate": 0.6210392902408112, "volume": 8040613.06}}}}, "dailyTrading": [{"date": "2023-05-01", "fgiValue": 63, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 477.0, "dailyTradeCount": 3}, {"date": "2023-12-05", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 0.0, "dailyVolume": 50005.83, "dailyTradeCount": 9}, {"date": "2023-12-14", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": -205.43473700000007, "dailyVolume": 113203.35, "dailyTradeCount": 11}, {"date": "2023-12-15", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": -24.632033999999997, "dailyVolume": 10609.95, "dailyTradeCount": 2}, {"date": "2023-12-16", "fgiValue": 67, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 15348.77, "dailyTradeCount": 3}, {"date": "2023-12-17", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 304.982785, "dailyVolume": 116278.02, "dailyTradeCount": 14}, {"date": "2023-12-18", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 31164.179999999997, "dailyTradeCount": 2}, {"date": "2023-12-19", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 1000.5386120000001, "dailyVolume": 91602.41, "dailyTradeCount": 15}, {"date": "2023-12-20", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 162.732282, "dailyVolume": 141636.79, "dailyTradeCount": 18}, {"date": "2023-12-21", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 537.211402, "dailyVolume": 125233.97, "dailyTradeCount": 49}, {"date": "2023-12-22", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 141.832675, "dailyVolume": 88874.28, "dailyTradeCount": 10}, {"date": "2023-12-23", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 146.936704, "dailyVolume": 78438.25, "dailyTradeCount": 13}, {"date": "2023-12-24", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 1008.619956, "dailyVolume": 402954.94, "dailyTradeCount": 39}, {"date": "2023-12-25", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": -245.081348, "dailyVolume": 59948.51, "dailyTradeCount": 3}, {"date": "2023-12-27", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": -704.8892269999999, "dailyVolume": 171411.06, "dailyTradeCount": 28}, {"date": "2023-12-28", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": -970.730876, "dailyVolume": 100117.25, "dailyTradeCount": 23}, {"date": "2023-12-29", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": 508.92214299999995, "dailyVolume": 569559.72, "dailyTradeCount": 50}, {"date": "2023-12-30", "fgiValue": 68, "fgiClassification": "Greed", "dailyPnL": 354.998648, "dailyVolume": 702550.21, "dailyTradeCount": 52}, {"date": "2024-01-01", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": -129.53146, "dailyVolume": 264239.52999999997, "dailyTradeCount": 18}, {"date": "2024-01-02", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 783.979116, "dailyVolume": 121348.74, "dailyTradeCount": 17}, {"date": "2024-01-03", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 866.015507, "dailyVolume": 394499.36, "dailyTradeCount": 67}, {"date": "2024-01-04", "fgiValue": 68, "fgiClassification": "Greed", "dailyPnL": -67.60364, "dailyVolume": 99792.54000000001, "dailyTradeCount": 5}, {"date": "2024-01-05", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 164.141565, "dailyVolume": 1703942.66, "dailyTradeCount": 66}, {"date": "2024-01-06", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 135.58166400000002, "dailyVolume": 298521.4, "dailyTradeCount": 22}, {"date": "2024-01-07", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": -835.681235, "dailyVolume": 1048850.06, "dailyTradeCount": 97}, {"date": "2024-01-08", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": -269.874439, "dailyVolume": 1522452.43, "dailyTradeCount": 128}, {"date": "2024-01-09", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": -826.349863, "dailyVolume": 870051.97, "dailyTradeCount": 70}, {"date": "2024-01-10", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": -1517.091342, "dailyVolume": 2057479.48, "dailyTradeCount": 193}, {"date": "2024-01-11", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": -164.08950099999998, "dailyVolume": 305314.1, "dailyTradeCount": 21}, {"date": "2024-01-12", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": -1925.519024, "dailyVolume": 200082.27, "dailyTradeCount": 7}, {"date": "2024-01-15", "fgiValue": 52, "fgiClassification": "Neutral", "dailyPnL": 152.85358, "dailyVolume": 50636.1, "dailyTradeCount": 14}, {"date": "2024-01-16", "fgiValue": 64, "fgiClassification": "Greed", "dailyPnL": -2299.171458, "dailyVolume": 116427.33, "dailyTradeCount": 9}, {"date": "2024-01-17", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": 813.2741110000001, "dailyVolume": 800831.03, "dailyTradeCount": 53}, {"date": "2024-01-18", "fgiValue": 63, "fgiClassification": "Greed", "dailyPnL": 68.93319, "dailyVolume": 424631.52999999997, "dailyTradeCount": 46}, {"date": "2024-01-19", "fgiValue": 51, "fgiClassification": "Neutral", "dailyPnL": -385.419235, "dailyVolume": 428428.97, "dailyTradeCount": 48}, {"date": "2024-01-20", "fgiValue": 52, "fgiClassification": "Neutral", "dailyPnL": -146.57487000000003, "dailyVolume": 1070090.51, "dailyTradeCount": 106}, {"date": "2024-01-21", "fgiValue": 56, "fgiClassification": "Greed", "dailyPnL": 266.58114600000005, "dailyVolume": 103129.74, "dailyTradeCount": 11}, {"date": "2024-01-22", "fgiValue": 55, "fgiClassification": "Greed", "dailyPnL": 1375.640959, "dailyVolume": 337878.99, "dailyTradeCount": 85}, {"date": "2024-01-23", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": -369.2447299999998, "dailyVolume": 414518.93000000005, "dailyTradeCount": 45}, {"date": "2024-01-24", "fgiValue": 48, "fgiClassification": "Neutral", "dailyPnL": -2808.353815, "dailyVolume": 965084.59, "dailyTradeCount": 68}, {"date": "2024-01-25", "fgiValue": 52, "fgiClassification": "Neutral", "dailyPnL": -3093.6293849999997, "dailyVolume": 66566.13, "dailyTradeCount": 6}, {"date": "2024-01-26", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 90.2, "dailyVolume": 11773.21, "dailyTradeCount": 5}, {"date": "2024-01-28", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": -2478.06972, "dailyVolume": 18109.03, "dailyTradeCount": 11}, {"date": "2024-01-29", "fgiValue": 55, "fgiClassification": "Greed", "dailyPnL": 486.562542, "dailyVolume": 414208.18, "dailyTradeCount": 74}, {"date": "2024-01-30", "fgiValue": 61, "fgiClassification": "Greed", "dailyPnL": -173.65419100000003, "dailyVolume": 401011.38, "dailyTradeCount": 49}, {"date": "2024-01-31", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": -799.840817, "dailyVolume": 6305647.13, "dailyTradeCount": 859}, {"date": "2024-02-01", "fgiValue": 63, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 2008.18, "dailyTradeCount": 6}, {"date": "2024-02-02", "fgiValue": 63, "fgiClassification": "Greed", "dailyPnL": 456.423473, "dailyVolume": 474278.43, "dailyTradeCount": 42}, {"date": "2024-02-03", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": 223.30918699999998, "dailyVolume": 603820.0, "dailyTradeCount": 56}, {"date": "2024-02-04", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": 47.62389499999999, "dailyVolume": 203187.53, "dailyTradeCount": 35}, {"date": "2024-02-05", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": -33.45419400000003, "dailyVolume": 770198.26, "dailyTradeCount": 72}, {"date": "2024-02-06", "fgiValue": 64, "fgiClassification": "Greed", "dailyPnL": -215.615907, "dailyVolume": 8047153.41, "dailyTradeCount": 1088}, {"date": "2024-02-07", "fgiValue": 62, "fgiClassification": "Greed", "dailyPnL": 241.24212, "dailyVolume": 6758.73, "dailyTradeCount": 15}, {"date": "2024-02-08", "fgiValue": 66, "fgiClassification": "Greed", "dailyPnL": 770.756024, "dailyVolume": 26051.12, "dailyTradeCount": 10}, {"date": "2024-02-11", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 983.443176, "dailyVolume": 212311.82, "dailyTradeCount": 34}, {"date": "2024-02-12", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 913.8817869999998, "dailyVolume": 227247.69999999998, "dailyTradeCount": 16}, {"date": "2024-02-13", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 559.44389, "dailyVolume": 1999.99, "dailyTradeCount": 14}, {"date": "2024-02-14", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 3830.599833, "dailyVolume": 320839.88, "dailyTradeCount": 111}, {"date": "2024-02-15", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 1840.797677, "dailyVolume": 185188.04, "dailyTradeCount": 63}, {"date": "2024-02-16", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 5491.768834, "dailyVolume": 564896.51, "dailyTradeCount": 182}, {"date": "2024-02-17", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 1929.6418, "dailyVolume": 406118.07, "dailyTradeCount": 94}, {"date": "2024-02-18", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 477.6248299999999, "dailyVolume": 157048.17, "dailyTradeCount": 97}, {"date": "2024-02-19", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 4317.768563, "dailyVolume": 286377.2, "dailyTradeCount": 101}, {"date": "2024-02-20", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 3263.628824, "dailyVolume": 119419.72, "dailyTradeCount": 39}, {"date": "2024-02-21", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 1858.7985700000002, "dailyVolume": 108047.51999999999, "dailyTradeCount": 22}, {"date": "2024-02-22", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 3894.1050699999996, "dailyVolume": 373033.87, "dailyTradeCount": 88}, {"date": "2024-02-23", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 1418.55293, "dailyVolume": 111106.14, "dailyTradeCount": 143}, {"date": "2024-02-25", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": -30.7705, "dailyVolume": 4480.13, "dailyTradeCount": 5}, {"date": "2024-02-26", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 4416.8473, "dailyVolume": 192187.14, "dailyTradeCount": 39}, {"date": "2024-02-27", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 888.511733, "dailyVolume": 209362.3, "dailyTradeCount": 63}, {"date": "2024-02-28", "fgiValue": 82, "fgiClassification": "Extreme Greed", "dailyPnL": 2503.747235, "dailyVolume": 171107.13, "dailyTradeCount": 45}, {"date": "2024-02-29", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 9813.996992, "dailyVolume": 395666.73, "dailyTradeCount": 116}, {"date": "2024-03-01", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 8244.241409, "dailyVolume": 472974.7, "dailyTradeCount": 137}, {"date": "2024-03-02", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 230.90060000000005, "dailyVolume": 63197.56, "dailyTradeCount": 31}, {"date": "2024-03-03", "fgiValue": 83, "fgiClassification": "Extreme Greed", "dailyPnL": 8361.086245, "dailyVolume": 390745.68, "dailyTradeCount": 79}, {"date": "2024-03-04", "fgiValue": 82, "fgiClassification": "Extreme Greed", "dailyPnL": 27799.775742, "dailyVolume": 1577996.87, "dailyTradeCount": 300}, {"date": "2024-03-05", "fgiValue": 90, "fgiClassification": "Extreme Greed", "dailyPnL": 19791.026041, "dailyVolume": 841810.32, "dailyTradeCount": 180}, {"date": "2024-03-06", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 6814.825139, "dailyVolume": 327218.02, "dailyTradeCount": 82}, {"date": "2024-03-08", "fgiValue": 81, "fgiClassification": "Extreme Greed", "dailyPnL": 4271.886236, "dailyVolume": 183583.18, "dailyTradeCount": 67}, {"date": "2024-03-09", "fgiValue": 84, "fgiClassification": "Extreme Greed", "dailyPnL": 9949.501624, "dailyVolume": 658178.75, "dailyTradeCount": 117}, {"date": "2024-03-10", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 2482.9272, "dailyVolume": 219973.85, "dailyTradeCount": 42}, {"date": "2024-03-11", "fgiValue": 82, "fgiClassification": "Extreme Greed", "dailyPnL": 3588.179495, "dailyVolume": 176519.44999999998, "dailyTradeCount": 42}, {"date": "2024-03-12", "fgiValue": 81, "fgiClassification": "Extreme Greed", "dailyPnL": 3039.166, "dailyVolume": 103040.85, "dailyTradeCount": 8}, {"date": "2024-03-13", "fgiValue": 81, "fgiClassification": "Extreme Greed", "dailyPnL": 0.0, "dailyVolume": 6000.799999999999, "dailyTradeCount": 7}, {"date": "2024-03-14", "fgiValue": 88, "fgiClassification": "Extreme Greed", "dailyPnL": 3465.865832, "dailyVolume": 205933.18, "dailyTradeCount": 18}, {"date": "2024-03-15", "fgiValue": 83, "fgiClassification": "Extreme Greed", "dailyPnL": 6236.513651, "dailyVolume": 351894.41, "dailyTradeCount": 62}, {"date": "2024-03-16", "fgiValue": 81, "fgiClassification": "Extreme Greed", "dailyPnL": 228.57984, "dailyVolume": 37223.66, "dailyTradeCount": 8}, {"date": "2024-03-17", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 503.293955, "dailyVolume": 99506.95, "dailyTradeCount": 23}, {"date": "2024-03-18", "fgiValue": 77, "fgiClassification": "Extreme Greed", "dailyPnL": 1456.9577, "dailyVolume": 90458.08, "dailyTradeCount": 19}, {"date": "2024-03-19", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 668.797973, "dailyVolume": 219884.84, "dailyTradeCount": 24}, {"date": "2024-03-20", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 6423.134599, "dailyVolume": 215705.85, "dailyTradeCount": 69}, {"date": "2024-03-21", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 2335.5080749999997, "dailyVolume": 117895.57, "dailyTradeCount": 28}, {"date": "2024-03-24", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 1297.018477, "dailyVolume": 92592.20999999999, "dailyTradeCount": 19}, {"date": "2024-03-25", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 1302.916428, "dailyVolume": 57116.32, "dailyTradeCount": 7}, {"date": "2024-03-26", "fgiValue": 81, "fgiClassification": "Extreme Greed", "dailyPnL": 3215.906593, "dailyVolume": 198565.19, "dailyTradeCount": 118}, {"date": "2024-03-27", "fgiValue": 83, "fgiClassification": "Extreme Greed", "dailyPnL": 150.41114, "dailyVolume": 99864.79, "dailyTradeCount": 38}, {"date": "2024-03-28", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 227.85100799999998, "dailyVolume": 35323.72, "dailyTradeCount": 13}, {"date": "2024-03-29", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 883.097404, "dailyVolume": 86914.37, "dailyTradeCount": 15}, {"date": "2024-03-30", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 1100.57514, "dailyVolume": 101103.92, "dailyTradeCount": 45}, {"date": "2024-03-31", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 912.786145, "dailyVolume": 39912.96, "dailyTradeCount": 13}, {"date": "2024-04-01", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 2507.963406, "dailyVolume": 339470.47, "dailyTradeCount": 77}, {"date": "2024-04-02", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 883.760812, "dailyVolume": 239664.50999999998, "dailyTradeCount": 41}, {"date": "2024-04-03", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 126.7884, "dailyVolume": 16887.57, "dailyTradeCount": 4}, {"date": "2024-04-04", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 95987.73, "dailyTradeCount": 32}, {"date": "2024-04-05", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 10706.484306, "dailyVolume": 503791.8, "dailyTradeCount": 100}, {"date": "2024-04-06", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 236.33513399999998, "dailyVolume": 68223.67, "dailyTradeCount": 16}, {"date": "2024-04-07", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 0.0, "dailyVolume": 49988.14, "dailyTradeCount": 23}, {"date": "2024-04-08", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 1218.4267, "dailyVolume": 211940.64, "dailyTradeCount": 30}, {"date": "2024-04-09", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 0.0, "dailyVolume": 57063.840000000004, "dailyTradeCount": 3}, {"date": "2024-04-10", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 5207.443414, "dailyVolume": 351735.97, "dailyTradeCount": 41}, {"date": "2024-04-11", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 389.743164, "dailyVolume": 76400.96, "dailyTradeCount": 16}, {"date": "2024-04-12", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": -592.6458390000001, "dailyVolume": 442088.59, "dailyTradeCount": 129}, {"date": "2024-04-13", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 6621.451755, "dailyVolume": 486411.25, "dailyTradeCount": 89}, {"date": "2024-04-14", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": -36104.012520000004, "dailyVolume": 659162.17, "dailyTradeCount": 107}, {"date": "2024-04-15", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 3774.08872, "dailyVolume": 291111.19, "dailyTradeCount": 41}, {"date": "2024-04-16", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": 2467.702221, "dailyVolume": 181907.17, "dailyTradeCount": 47}, {"date": "2024-04-17", "fgiValue": 67, "fgiClassification": "Greed", "dailyPnL": 2441.4683999999997, "dailyVolume": 97562.99, "dailyTradeCount": 14}, {"date": "2024-04-19", "fgiValue": 66, "fgiClassification": "Greed", "dailyPnL": 1946.4454620000001, "dailyVolume": 337257.92000000004, "dailyTradeCount": 35}, {"date": "2024-04-20", "fgiValue": 66, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 60733.24, "dailyTradeCount": 22}, {"date": "2024-04-22", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 47993.61, "dailyTradeCount": 9}, {"date": "2024-04-23", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 1119.536196, "dailyVolume": 233054.9, "dailyTradeCount": 66}, {"date": "2024-04-24", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 279.185907, "dailyVolume": 141275.24, "dailyTradeCount": 20}, {"date": "2024-04-25", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 120241.01, "dailyTradeCount": 74}, {"date": "2024-04-26", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 4988.290000000001, "dailyTradeCount": 3}, {"date": "2024-04-27", "fgiValue": 67, "fgiClassification": "Greed", "dailyPnL": 4281.488139, "dailyVolume": 154264.47, "dailyTradeCount": 27}, {"date": "2024-04-28", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 43985.6, "dailyTradeCount": 58}, {"date": "2024-04-29", "fgiValue": 67, "fgiClassification": "Greed", "dailyPnL": 526.9338359999999, "dailyVolume": 108699.01, "dailyTradeCount": 45}, {"date": "2024-04-30", "fgiValue": 67, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 125018.75, "dailyTradeCount": 24}, {"date": "2024-05-01", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 87025.45, "dailyTradeCount": 14}, {"date": "2024-05-03", "fgiValue": 48, "fgiClassification": "Neutral", "dailyPnL": 5306.017045, "dailyVolume": 282682.64999999997, "dailyTradeCount": 36}, {"date": "2024-05-04", "fgiValue": 67, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 58998.75, "dailyTradeCount": 9}, {"date": "2024-05-05", "fgiValue": 69, "fgiClassification": "Greed", "dailyPnL": 0.916, "dailyVolume": 24068.350000000002, "dailyTradeCount": 6}, {"date": "2024-05-06", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 968.59038, "dailyVolume": 206016.43, "dailyTradeCount": 9}, {"date": "2024-05-07", "fgiValue": 68, "fgiClassification": "Greed", "dailyPnL": 883.537693, "dailyVolume": 108717.58, "dailyTradeCount": 18}, {"date": "2024-05-08", "fgiValue": 64, "fgiClassification": "Greed", "dailyPnL": 1.56576, "dailyVolume": 65973.57, "dailyTradeCount": 13}, {"date": "2024-05-09", "fgiValue": 55, "fgiClassification": "Greed", "dailyPnL": 1147.595856, "dailyVolume": 221966.12, "dailyTradeCount": 28}, {"date": "2024-05-10", "fgiValue": 66, "fgiClassification": "Greed", "dailyPnL": 2101.741695, "dailyVolume": 156882.0, "dailyTradeCount": 22}, {"date": "2024-05-11", "fgiValue": 53, "fgiClassification": "Neutral", "dailyPnL": 251.604742, "dailyVolume": 63248.95, "dailyTradeCount": 9}, {"date": "2024-05-12", "fgiValue": 56, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 55179.56, "dailyTradeCount": 23}, {"date": "2024-05-13", "fgiValue": 57, "fgiClassification": "Greed", "dailyPnL": 2136.853859, "dailyVolume": 193118.9, "dailyTradeCount": 28}, {"date": "2024-05-14", "fgiValue": 66, "fgiClassification": "Greed", "dailyPnL": 1150.5233050000002, "dailyVolume": 145853.4, "dailyTradeCount": 23}, {"date": "2024-05-15", "fgiValue": 64, "fgiClassification": "Greed", "dailyPnL": 948.970582, "dailyVolume": 234922.57, "dailyTradeCount": 36}, {"date": "2024-05-16", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 214.5898, "dailyVolume": 162620.96, "dailyTradeCount": 27}, {"date": "2024-05-18", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 3522.3946610000003, "dailyVolume": 126303.14, "dailyTradeCount": 25}, {"date": "2024-05-19", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 29998.09, "dailyTradeCount": 8}, {"date": "2024-05-20", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": -74.818442, "dailyVolume": 38124.75, "dailyTradeCount": 10}, {"date": "2024-05-21", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 7289.397571999999, "dailyVolume": 1100948.59, "dailyTradeCount": 125}, {"date": "2024-05-22", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 0.0, "dailyVolume": 44995.29, "dailyTradeCount": 6}, {"date": "2024-05-23", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 413.347329, "dailyVolume": 401850.6, "dailyTradeCount": 325}, {"date": "2024-05-24", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 821.949278, "dailyVolume": 50811.899999999994, "dailyTradeCount": 2}, {"date": "2024-05-25", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 14.126038999999999, "dailyVolume": 29991.129999999997, "dailyTradeCount": 16}, {"date": "2024-05-26", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 778.6839, "dailyVolume": 53976.67, "dailyTradeCount": 16}, {"date": "2024-05-27", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 1129.35587, "dailyVolume": 151115.72, "dailyTradeCount": 251}, {"date": "2024-05-29", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 277.791953, "dailyVolume": 84268.76, "dailyTradeCount": 164}, {"date": "2024-05-30", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 20.951433, "dailyVolume": 2838.09, "dailyTradeCount": 7}, {"date": "2024-05-31", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 25.35812, "dailyVolume": 3636.14, "dailyTradeCount": 13}, {"date": "2024-06-01", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 91.510419, "dailyVolume": 12834.62, "dailyTradeCount": 25}, {"date": "2024-06-02", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 192.906947, "dailyVolume": 29464.51, "dailyTradeCount": 93}, {"date": "2024-06-03", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 562.808208, "dailyVolume": 21466.86, "dailyTradeCount": 70}, {"date": "2024-06-04", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 52.211438, "dailyVolume": 24243.41, "dailyTradeCount": 53}, {"date": "2024-06-05", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 56.055506, "dailyVolume": 25350.77, "dailyTradeCount": 54}, {"date": "2024-06-06", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 274.173187, "dailyVolume": 137557.76, "dailyTradeCount": 234}, {"date": "2024-06-07", "fgiValue": 77, "fgiClassification": "Extreme Greed", "dailyPnL": 8902.467416, "dailyVolume": 1098588.76, "dailyTradeCount": 440}, {"date": "2024-06-08", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 129.13883900000002, "dailyVolume": 97351.88, "dailyTradeCount": 29}, {"date": "2024-06-09", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 0.0, "dailyVolume": 22410.22, "dailyTradeCount": 17}, {"date": "2024-06-10", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 31.266804999999998, "dailyVolume": 46587.93, "dailyTradeCount": 53}, {"date": "2024-06-11", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 4320.631811, "dailyVolume": 373279.92, "dailyTradeCount": 123}, {"date": "2024-06-12", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": -21886.531493, "dailyVolume": 193407.96, "dailyTradeCount": 254}, {"date": "2024-06-13", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 6632.757115, "dailyVolume": 132577.22, "dailyTradeCount": 79}, {"date": "2024-06-14", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 10258.592609, "dailyVolume": 139868.66, "dailyTradeCount": 31}, {"date": "2024-06-15", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 3369.958346, "dailyVolume": 718350.25, "dailyTradeCount": 78}, {"date": "2024-06-16", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 25235.079999999998, "dailyTradeCount": 11}, {"date": "2024-06-17", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 10599.502375, "dailyVolume": 368380.12, "dailyTradeCount": 38}, {"date": "2024-06-18", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 282.57636, "dailyVolume": 263314.79, "dailyTradeCount": 25}, {"date": "2024-06-19", "fgiValue": 64, "fgiClassification": "Greed", "dailyPnL": 4887.656944, "dailyVolume": 417071.12, "dailyTradeCount": 61}, {"date": "2024-06-20", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": 57478.456026, "dailyVolume": 207990.8, "dailyTradeCount": 39}, {"date": "2024-06-21", "fgiValue": 63, "fgiClassification": "Greed", "dailyPnL": 773.5582039999999, "dailyVolume": 176264.49, "dailyTradeCount": 80}, {"date": "2024-06-22", "fgiValue": 53, "fgiClassification": "Neutral", "dailyPnL": 756.876565, "dailyVolume": 169594.27000000002, "dailyTradeCount": 24}, {"date": "2024-06-23", "fgiValue": 55, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 1792.12, "dailyTradeCount": 5}, {"date": "2024-06-24", "fgiValue": 51, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 403002.8, "dailyTradeCount": 31}, {"date": "2024-06-25", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": 4869.353105, "dailyVolume": 103099.08, "dailyTradeCount": 49}, {"date": "2024-06-26", "fgiValue": 46, "fgiClassification": "Neutral", "dailyPnL": 4197.732182, "dailyVolume": 365190.66000000003, "dailyTradeCount": 72}, {"date": "2024-06-27", "fgiValue": 40, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 130486.95, "dailyTradeCount": 30}, {"date": "2024-06-29", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": 6150.326145, "dailyVolume": 280095.11, "dailyTradeCount": 75}, {"date": "2024-06-30", "fgiValue": 47, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 30520.69, "dailyTradeCount": 14}, {"date": "2024-07-01", "fgiValue": 53, "fgiClassification": "Neutral", "dailyPnL": 5065.839308, "dailyVolume": 362670.14999999997, "dailyTradeCount": 64}, {"date": "2024-07-02", "fgiValue": 51, "fgiClassification": "Neutral", "dailyPnL": 2421.253116, "dailyVolume": 33347.47, "dailyTradeCount": 18}, {"date": "2024-07-03", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 1118.387284, "dailyVolume": 179600.66, "dailyTradeCount": 18}, {"date": "2024-07-04", "fgiValue": 44, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 430568.01, "dailyTradeCount": 25}, {"date": "2024-07-05", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 272289.89, "dailyTradeCount": 32}, {"date": "2024-07-06", "fgiValue": 26, "fgiClassification": "Fear", "dailyPnL": 108.87217799999999, "dailyVolume": 2490.17, "dailyTradeCount": 24}, {"date": "2024-07-07", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 61.428942, "dailyVolume": 498.75, "dailyTradeCount": 10}, {"date": "2024-07-08", "fgiValue": 28, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 497.64, "dailyTradeCount": 1}, {"date": "2024-07-09", "fgiValue": 27, "fgiClassification": "Fear", "dailyPnL": 648.984412, "dailyVolume": 2736.45, "dailyTradeCount": 15}, {"date": "2024-07-10", "fgiValue": 28, "fgiClassification": "Fear", "dailyPnL": 11977.734907, "dailyVolume": 687900.21, "dailyTradeCount": 56}, {"date": "2024-07-11", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 1876.812082, "dailyVolume": 169887.02, "dailyTradeCount": 19}, {"date": "2024-07-12", "fgiValue": 25, "fgiClassification": "Fear", "dailyPnL": 1412.314654, "dailyVolume": 89582.97, "dailyTradeCount": 19}, {"date": "2024-07-13", "fgiValue": 25, "fgiClassification": "Fear", "dailyPnL": 2913.617837, "dailyVolume": 139189.19, "dailyTradeCount": 17}, {"date": "2024-07-14", "fgiValue": 33, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 84001.13, "dailyTradeCount": 7}, {"date": "2024-07-15", "fgiValue": 52, "fgiClassification": "Neutral", "dailyPnL": -1.0, "dailyVolume": 198344.85, "dailyTradeCount": 26}, {"date": "2024-07-16", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 144000.57, "dailyTradeCount": 22}, {"date": "2024-07-17", "fgiValue": 69, "fgiClassification": "Greed", "dailyPnL": 1859.269477, "dailyVolume": 626005.53, "dailyTradeCount": 351}, {"date": "2024-07-18", "fgiValue": 61, "fgiClassification": "Greed", "dailyPnL": 3803.884311, "dailyVolume": 649704.85, "dailyTradeCount": 60}, {"date": "2024-07-19", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": 2155.891114, "dailyVolume": 150269.42, "dailyTradeCount": 23}, {"date": "2024-07-20", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 2299.169566, "dailyVolume": 244362.21, "dailyTradeCount": 266}, {"date": "2024-07-21", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": -2960.716887, "dailyVolume": 234307.46, "dailyTradeCount": 448}, {"date": "2024-07-22", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 1517.119876, "dailyVolume": 304213.8, "dailyTradeCount": 154}, {"date": "2024-07-23", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 89890.302206, "dailyVolume": 358526.54, "dailyTradeCount": 370}, {"date": "2024-07-24", "fgiValue": 69, "fgiClassification": "Greed", "dailyPnL": 625.561479, "dailyVolume": 69207.93, "dailyTradeCount": 90}, {"date": "2024-07-25", "fgiValue": 68, "fgiClassification": "Greed", "dailyPnL": 916.7382600000001, "dailyVolume": 528555.31, "dailyTradeCount": 78}, {"date": "2024-07-26", "fgiValue": 68, "fgiClassification": "Greed", "dailyPnL": 2766.513113, "dailyVolume": 548587.65, "dailyTradeCount": 152}, {"date": "2024-07-27", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 6400.623656, "dailyVolume": 905199.75, "dailyTradeCount": 57}, {"date": "2024-07-28", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 587.29903, "dailyVolume": 43254.68, "dailyTradeCount": 16}, {"date": "2024-07-29", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 330.80445399999996, "dailyVolume": 327199.14, "dailyTradeCount": 39}, {"date": "2024-07-30", "fgiValue": 67, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 36006.47, "dailyTradeCount": 6}, {"date": "2024-07-31", "fgiValue": 61, "fgiClassification": "Greed", "dailyPnL": 765.690884, "dailyVolume": 84506.54, "dailyTradeCount": 43}, {"date": "2024-08-01", "fgiValue": 52, "fgiClassification": "Neutral", "dailyPnL": 167.080017, "dailyVolume": 227774.53, "dailyTradeCount": 57}, {"date": "2024-08-02", "fgiValue": 57, "fgiClassification": "Greed", "dailyPnL": 782.3681909999999, "dailyVolume": 396320.37, "dailyTradeCount": 63}, {"date": "2024-08-03", "fgiValue": 37, "fgiClassification": "Fear", "dailyPnL": 464.1897, "dailyVolume": 290532.86, "dailyTradeCount": 37}, {"date": "2024-08-04", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": -122672.000883, "dailyVolume": 1207744.07, "dailyTradeCount": 127}, {"date": "2024-08-05", "fgiValue": 26, "fgiClassification": "Fear", "dailyPnL": -13013.665169, "dailyVolume": 420495.4, "dailyTradeCount": 80}, {"date": "2024-08-06", "fgiValue": 17, "fgiClassification": "Extreme Fear", "dailyPnL": 267.318048, "dailyVolume": 61478.38, "dailyTradeCount": 107}, {"date": "2024-08-07", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 188.789255, "dailyVolume": 2492.77, "dailyTradeCount": 33}, {"date": "2024-08-08", "fgiValue": 20, "fgiClassification": "Extreme Fear", "dailyPnL": -40.712216999999995, "dailyVolume": 16299.35, "dailyTradeCount": 9}, {"date": "2024-08-09", "fgiValue": 48, "fgiClassification": "Neutral", "dailyPnL": 18082.071276, "dailyVolume": 503204.86, "dailyTradeCount": 144}, {"date": "2024-08-10", "fgiValue": 40, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 11339.29, "dailyTradeCount": 88}, {"date": "2024-08-11", "fgiValue": 39, "fgiClassification": "Fear", "dailyPnL": 847.7766200000001, "dailyVolume": 44230.21, "dailyTradeCount": 24}, {"date": "2024-08-12", "fgiValue": 25, "fgiClassification": "Fear", "dailyPnL": 858.6705000000001, "dailyVolume": 54167.32, "dailyTradeCount": 48}, {"date": "2024-08-13", "fgiValue": 31, "fgiClassification": "Fear", "dailyPnL": 212.08102, "dailyVolume": 20797.87, "dailyTradeCount": 23}, {"date": "2024-08-14", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": 2168.9015130000003, "dailyVolume": 66710.03, "dailyTradeCount": 25}, {"date": "2024-08-15", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 1522.3700000000001, "dailyTradeCount": 12}, {"date": "2024-08-16", "fgiValue": 27, "fgiClassification": "Fear", "dailyPnL": 825.230544, "dailyVolume": 166382.84, "dailyTradeCount": 35}, {"date": "2024-08-17", "fgiValue": 25, "fgiClassification": "Fear", "dailyPnL": -288.283113, "dailyVolume": 30248.96, "dailyTradeCount": 30}, {"date": "2024-08-18", "fgiValue": 31, "fgiClassification": "Fear", "dailyPnL": 307.201888, "dailyVolume": 62804.48, "dailyTradeCount": 15}, {"date": "2024-08-19", "fgiValue": 28, "fgiClassification": "Fear", "dailyPnL": 339.69958299999996, "dailyVolume": 100315.03, "dailyTradeCount": 8}, {"date": "2024-08-20", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": 192.602844, "dailyVolume": 49914.8, "dailyTradeCount": 12}, {"date": "2024-08-21", "fgiValue": 26, "fgiClassification": "Fear", "dailyPnL": 656.200925, "dailyVolume": 104990.41, "dailyTradeCount": 145}, {"date": "2024-08-23", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": 1005.30527, "dailyVolume": 63509.56, "dailyTradeCount": 10}, {"date": "2024-08-24", "fgiValue": 56, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 34999.67, "dailyTradeCount": 7}, {"date": "2024-08-25", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 21950.28, "dailyTradeCount": 17}, {"date": "2024-08-26", "fgiValue": 55, "fgiClassification": "Greed", "dailyPnL": 231.236918, "dailyVolume": 92611.27, "dailyTradeCount": 6}, {"date": "2024-08-27", "fgiValue": 48, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 70250.16, "dailyTradeCount": 50}, {"date": "2024-08-28", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": 1333.359645, "dailyVolume": 71160.06999999999, "dailyTradeCount": 9}, {"date": "2024-08-29", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 9995.85, "dailyTradeCount": 1}, {"date": "2024-08-30", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": 256.464, "dailyVolume": 37233.24, "dailyTradeCount": 6}, {"date": "2024-08-31", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 10.882801, "dailyVolume": 107507.43000000001, "dailyTradeCount": 34}, {"date": "2024-09-01", "fgiValue": 26, "fgiClassification": "Fear", "dailyPnL": 137.433093, "dailyVolume": 12359.68, "dailyTradeCount": 12}, {"date": "2024-09-02", "fgiValue": 26, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 30000.42, "dailyTradeCount": 2}, {"date": "2024-09-04", "fgiValue": 27, "fgiClassification": "Fear", "dailyPnL": 1065.785132, "dailyVolume": 131480.97, "dailyTradeCount": 34}, {"date": "2024-09-05", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 0.84, "dailyTradeCount": 1}, {"date": "2024-09-06", "fgiValue": 22, "fgiClassification": "Extreme Fear", "dailyPnL": -1104.856765, "dailyVolume": 39047.1, "dailyTradeCount": 42}, {"date": "2024-09-08", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 0.11, "dailyTradeCount": 1}, {"date": "2024-09-09", "fgiValue": 26, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 4014.4300000000003, "dailyTradeCount": 2}, {"date": "2024-09-10", "fgiValue": 33, "fgiClassification": "Fear", "dailyPnL": -219.729659, "dailyVolume": 2547.28, "dailyTradeCount": 3}, {"date": "2024-09-11", "fgiValue": 37, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 0.54, "dailyTradeCount": 1}, {"date": "2024-09-14", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 1014.8000000000001, "dailyTradeCount": 11}, {"date": "2024-09-18", "fgiValue": 45, "fgiClassification": "Neutral", "dailyPnL": -878.684794, "dailyVolume": 13633.5, "dailyTradeCount": 145}, {"date": "2024-09-19", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 1521.8700000000001, "dailyTradeCount": 19}, {"date": "2024-09-20", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": 9585.03428, "dailyVolume": 332873.38, "dailyTradeCount": 16}, {"date": "2024-09-21", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": 36165.56933, "dailyVolume": 165648.12, "dailyTradeCount": 23}, {"date": "2024-09-22", "fgiValue": 52, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 19999.739999999998, "dailyTradeCount": 3}, {"date": "2024-09-23", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 334.760796, "dailyVolume": 40334.29, "dailyTradeCount": 2}, {"date": "2024-09-24", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 7118.63, "dailyTradeCount": 10}, {"date": "2024-09-25", "fgiValue": 59, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 52754.130000000005, "dailyTradeCount": 9}, {"date": "2024-09-26", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 439.812513, "dailyVolume": 113711.93000000001, "dailyTradeCount": 8}, {"date": "2024-09-27", "fgiValue": 61, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 126097.04, "dailyTradeCount": 56}, {"date": "2024-09-28", "fgiValue": 64, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 29199.21, "dailyTradeCount": 4}, {"date": "2024-09-30", "fgiValue": 61, "fgiClassification": "Greed", "dailyPnL": 2710.626288, "dailyVolume": 214669.85, "dailyTradeCount": 106}, {"date": "2024-10-01", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 139954.32, "dailyTradeCount": 4}, {"date": "2024-10-02", "fgiValue": 42, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 99954.34, "dailyTradeCount": 4}, {"date": "2024-10-03", "fgiValue": 37, "fgiClassification": "Fear", "dailyPnL": 100.375782, "dailyVolume": 132935.69, "dailyTradeCount": 9}, {"date": "2024-10-04", "fgiValue": 41, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 0.34, "dailyTradeCount": 1}, {"date": "2024-10-05", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 5767.161892, "dailyVolume": 605605.74, "dailyTradeCount": 37}, {"date": "2024-10-06", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 130.487079, "dailyVolume": 300130.56, "dailyTradeCount": 22}, {"date": "2024-10-07", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 219984.65, "dailyTradeCount": 21}, {"date": "2024-10-08", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 5396.546638, "dailyVolume": 434584.13, "dailyTradeCount": 36}, {"date": "2024-10-09", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 396.06272, "dailyVolume": 220399.93, "dailyTradeCount": 14}, {"date": "2024-10-10", "fgiValue": 39, "fgiClassification": "Fear", "dailyPnL": 0.0, "dailyVolume": 300024.33999999997, "dailyTradeCount": 16}, {"date": "2024-10-11", "fgiValue": 32, "fgiClassification": "Fear", "dailyPnL": 8885.327477, "dailyVolume": 488904.19, "dailyTradeCount": 26}, {"date": "2024-10-12", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 541.55471, "dailyVolume": 159713.4, "dailyTradeCount": 10}, {"date": "2024-10-13", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 0.0, "dailyVolume": 60002.42, "dailyTradeCount": 10}, {"date": "2024-10-14", "fgiValue": 48, "fgiClassification": "Neutral", "dailyPnL": 1913.61958, "dailyVolume": 61916.020000000004, "dailyTradeCount": 5}, {"date": "2024-10-15", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": 1170.2260760000001, "dailyVolume": 81173.36, "dailyTradeCount": 7}, {"date": "2024-10-16", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 219.480876, "dailyVolume": 80229.17, "dailyTradeCount": 11}, {"date": "2024-10-17", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 36.11496, "dailyVolume": 140531.75, "dailyTradeCount": 9}, {"date": "2024-10-18", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 333.219141, "dailyVolume": 120331.43000000001, "dailyTradeCount": 6}, {"date": "2024-10-19", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 99996.86, "dailyTradeCount": 4}, {"date": "2024-10-20", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 389.155797, "dailyVolume": 176447.86000000002, "dailyTradeCount": 96}, {"date": "2024-10-21", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 2464.915564, "dailyVolume": 324117.99, "dailyTradeCount": 173}, {"date": "2024-10-22", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 60000.36, "dailyTradeCount": 3}, {"date": "2024-10-23", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": -46.489941, "dailyVolume": 210006.07, "dailyTradeCount": 18}, {"date": "2024-10-25", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 13235.862071, "dailyVolume": 427883.18, "dailyTradeCount": 30}, {"date": "2024-10-27", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 666.6623079999999, "dailyVolume": 90664.41, "dailyTradeCount": 4}, {"date": "2024-10-28", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 167.28016200000002, "dailyVolume": 121495.25, "dailyTradeCount": 13}, {"date": "2024-10-29", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 801.170876, "dailyVolume": 613267.8099999999, "dailyTradeCount": 53}, {"date": "2024-10-30", "fgiValue": 77, "fgiClassification": "Extreme Greed", "dailyPnL": 9.150023, "dailyVolume": 11830.85, "dailyTradeCount": 25}, {"date": "2024-10-31", "fgiValue": 77, "fgiClassification": "Extreme Greed", "dailyPnL": 1214.043811, "dailyVolume": 896173.36, "dailyTradeCount": 48}, {"date": "2024-11-01", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 1040.475736, "dailyVolume": 260981.03, "dailyTradeCount": 23}, {"date": "2024-11-02", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 40000.0, "dailyTradeCount": 2}, {"date": "2024-11-03", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 0.0, "dailyVolume": 129055.66, "dailyTradeCount": 6}, {"date": "2024-11-04", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 2799.410474, "dailyVolume": 451811.97, "dailyTradeCount": 36}, {"date": "2024-11-05", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 678.4759280000001, "dailyVolume": 200627.23, "dailyTradeCount": 10}, {"date": "2024-11-06", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 2817.83723, "dailyVolume": 123906.9, "dailyTradeCount": 15}, {"date": "2024-11-07", "fgiValue": 77, "fgiClassification": "Extreme Greed", "dailyPnL": 4493.353136, "dailyVolume": 111335.3, "dailyTradeCount": 113}, {"date": "2024-11-08", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": -64.41354100000007, "dailyVolume": 270700.44, "dailyTradeCount": 39}, {"date": "2024-11-09", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 102.90894, "dailyVolume": 193384.41, "dailyTradeCount": 86}, {"date": "2024-11-10", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 991.114334, "dailyVolume": 413636.7, "dailyTradeCount": 173}, {"date": "2024-11-11", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 6749.630996, "dailyVolume": 1570572.42, "dailyTradeCount": 373}, {"date": "2024-11-12", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 3494.399394, "dailyVolume": 1226354.52, "dailyTradeCount": 171}, {"date": "2024-11-13", "fgiValue": 84, "fgiClassification": "Extreme Greed", "dailyPnL": 7846.402274, "dailyVolume": 515336.37, "dailyTradeCount": 48}, {"date": "2024-11-14", "fgiValue": 88, "fgiClassification": "Extreme Greed", "dailyPnL": 4563.509225, "dailyVolume": 1008361.81, "dailyTradeCount": 110}, {"date": "2024-11-15", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 4140.740438, "dailyVolume": 1427858.42, "dailyTradeCount": 149}, {"date": "2024-11-16", "fgiValue": 86, "fgiClassification": "Extreme Greed", "dailyPnL": 2769.521909, "dailyVolume": 303296.07, "dailyTradeCount": 157}, {"date": "2024-11-17", "fgiValue": 90, "fgiClassification": "Extreme Greed", "dailyPnL": 882.975285, "dailyVolume": 1215987.57, "dailyTradeCount": 209}, {"date": "2024-11-18", "fgiValue": 83, "fgiClassification": "Extreme Greed", "dailyPnL": 4470.815187, "dailyVolume": 2084339.58, "dailyTradeCount": 346}, {"date": "2024-11-19", "fgiValue": 90, "fgiClassification": "Extreme Greed", "dailyPnL": 2958.268991, "dailyVolume": 628031.15, "dailyTradeCount": 305}, {"date": "2024-11-20", "fgiValue": 83, "fgiClassification": "Extreme Greed", "dailyPnL": 4210.0928969999995, "dailyVolume": 1999514.1199999999, "dailyTradeCount": 550}, {"date": "2024-11-21", "fgiValue": 82, "fgiClassification": "Extreme Greed", "dailyPnL": 1692.430891, "dailyVolume": 598300.62, "dailyTradeCount": 535}, {"date": "2024-11-22", "fgiValue": 94, "fgiClassification": "Extreme Greed", "dailyPnL": -18105.345617, "dailyVolume": 1646713.62, "dailyTradeCount": 679}, {"date": "2024-11-23", "fgiValue": 93, "fgiClassification": "Extreme Greed", "dailyPnL": 2901.531638, "dailyVolume": 516245.68, "dailyTradeCount": 363}, {"date": "2024-11-24", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 945.550386, "dailyVolume": 664952.28, "dailyTradeCount": 172}, {"date": "2024-11-25", "fgiValue": 82, "fgiClassification": "Extreme Greed", "dailyPnL": 5523.740734, "dailyVolume": 937410.87, "dailyTradeCount": 255}, {"date": "2024-11-26", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 1094.809359, "dailyVolume": 1146902.44, "dailyTradeCount": 302}, {"date": "2024-11-27", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": -2654.495633, "dailyVolume": 1444242.53, "dailyTradeCount": 213}, {"date": "2024-11-28", "fgiValue": 77, "fgiClassification": "Extreme Greed", "dailyPnL": -127075.39958499999, "dailyVolume": 1894225.15, "dailyTradeCount": 332}, {"date": "2024-11-29", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 176844.994152, "dailyVolume": 794262.91, "dailyTradeCount": 393}, {"date": "2024-11-30", "fgiValue": 84, "fgiClassification": "Extreme Greed", "dailyPnL": 37316.69352, "dailyVolume": 1732193.7, "dailyTradeCount": 373}, {"date": "2024-12-01", "fgiValue": 81, "fgiClassification": "Extreme Greed", "dailyPnL": 40886.364494, "dailyVolume": 814711.82, "dailyTradeCount": 416}, {"date": "2024-12-02", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 18489.604313, "dailyVolume": 585243.56, "dailyTradeCount": 270}, {"date": "2024-12-03", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 23576.539285, "dailyVolume": 1084666.53, "dailyTradeCount": 374}, {"date": "2024-12-04", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 292891.815021, "dailyVolume": 769287.65, "dailyTradeCount": 319}, {"date": "2024-12-05", "fgiValue": 84, "fgiClassification": "Extreme Greed", "dailyPnL": 71574.11848800001, "dailyVolume": 1256750.79, "dailyTradeCount": 456}, {"date": "2024-12-06", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": -92624.643895, "dailyVolume": 3471019.22, "dailyTradeCount": 403}, {"date": "2024-12-07", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 85906.279067, "dailyVolume": 451733.42, "dailyTradeCount": 304}, {"date": "2024-12-08", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 15965.933436, "dailyVolume": 932939.72, "dailyTradeCount": 420}, {"date": "2024-12-09", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 6310.967676, "dailyVolume": 983949.68, "dailyTradeCount": 539}, {"date": "2024-12-10", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 39325.770231, "dailyVolume": 3150424.08, "dailyTradeCount": 1596}, {"date": "2024-12-11", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 319051.554217, "dailyVolume": 2194098.33, "dailyTradeCount": 1221}, {"date": "2024-12-12", "fgiValue": 83, "fgiClassification": "Extreme Greed", "dailyPnL": 599151.795008, "dailyVolume": 4557189.87, "dailyTradeCount": 1932}, {"date": "2024-12-13", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 31935.901745, "dailyVolume": 2880824.64, "dailyTradeCount": 1173}, {"date": "2024-12-14", "fgiValue": 83, "fgiClassification": "Extreme Greed", "dailyPnL": 167801.399244, "dailyVolume": 2369561.78, "dailyTradeCount": 1235}, {"date": "2024-12-15", "fgiValue": 80, "fgiClassification": "Extreme Greed", "dailyPnL": 97525.315279, "dailyVolume": 2583269.81, "dailyTradeCount": 1697}, {"date": "2024-12-16", "fgiValue": 83, "fgiClassification": "Extreme Greed", "dailyPnL": 166774.344133, "dailyVolume": 2740808.97, "dailyTradeCount": 1055}, {"date": "2024-12-17", "fgiValue": 87, "fgiClassification": "Extreme Greed", "dailyPnL": 219591.305172, "dailyVolume": 5233597.63, "dailyTradeCount": 1941}, {"date": "2024-12-18", "fgiValue": 81, "fgiClassification": "Extreme Greed", "dailyPnL": 13682.994673, "dailyVolume": 3798887.07, "dailyTradeCount": 1429}, {"date": "2024-12-19", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 62744.004486000005, "dailyVolume": 8241709.39, "dailyTradeCount": 3339}, {"date": "2024-12-20", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 254969.660039, "dailyVolume": 7681274.71, "dailyTradeCount": 2488}, {"date": "2024-12-21", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 150022.163157, "dailyVolume": 4382875.12, "dailyTradeCount": 1681}, {"date": "2024-12-22", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 352197.163973, "dailyVolume": 3087320.22, "dailyTradeCount": 774}, {"date": "2024-12-23", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": -29430.626577, "dailyVolume": 6771878.26, "dailyTradeCount": 2347}, {"date": "2024-12-24", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 14813.780116, "dailyVolume": 1767036.11, "dailyTradeCount": 338}, {"date": "2024-12-25", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 756.6570469999998, "dailyVolume": 347889.35, "dailyTradeCount": 208}, {"date": "2024-12-26", "fgiValue": 79, "fgiClassification": "Extreme Greed", "dailyPnL": 60228.639722, "dailyVolume": 2205242.65, "dailyTradeCount": 697}, {"date": "2024-12-27", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 2672.811035, "dailyVolume": 347913.0, "dailyTradeCount": 260}, {"date": "2024-12-28", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 940.673623, "dailyVolume": 281555.01, "dailyTradeCount": 161}, {"date": "2024-12-29", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 2884.067927, "dailyVolume": 344628.54, "dailyTradeCount": 201}, {"date": "2024-12-30", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": 9009.738137, "dailyVolume": 1073865.73, "dailyTradeCount": 304}, {"date": "2024-12-31", "fgiValue": 64, "fgiClassification": "Greed", "dailyPnL": 5445.01281, "dailyVolume": 877164.62, "dailyTradeCount": 306}, {"date": "2025-01-01", "fgiValue": 66, "fgiClassification": "Greed", "dailyPnL": -9528.065345, "dailyVolume": 282582.1, "dailyTradeCount": 96}, {"date": "2025-01-02", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 8716.519087, "dailyVolume": 774674.84, "dailyTradeCount": 361}, {"date": "2025-01-03", "fgiValue": 74, "fgiClassification": "Greed", "dailyPnL": 6028.486793, "dailyVolume": 771208.99, "dailyTradeCount": 508}, {"date": "2025-01-04", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 2553.537968, "dailyVolume": 1826029.6199999999, "dailyTradeCount": 371}, {"date": "2025-01-05", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 3187.719363, "dailyVolume": 451943.57, "dailyTradeCount": 239}, {"date": "2025-01-06", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 6064.185393, "dailyVolume": 556526.99, "dailyTradeCount": 573}, {"date": "2025-01-07", "fgiValue": 78, "fgiClassification": "Extreme Greed", "dailyPnL": 16098.227531, "dailyVolume": 1313178.1, "dailyTradeCount": 637}, {"date": "2025-01-08", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 130117.090554, "dailyVolume": 3177275.18, "dailyTradeCount": 1039}, {"date": "2025-01-09", "fgiValue": 69, "fgiClassification": "Greed", "dailyPnL": 46975.928902, "dailyVolume": 1020733.25, "dailyTradeCount": 522}, {"date": "2025-01-10", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": -10116.875552, "dailyVolume": 6547449.68, "dailyTradeCount": 819}, {"date": "2025-01-11", "fgiValue": 69, "fgiClassification": "Greed", "dailyPnL": 2269.080536, "dailyVolume": 1658098.71, "dailyTradeCount": 283}, {"date": "2025-01-12", "fgiValue": 62, "fgiClassification": "Greed", "dailyPnL": 5742.241803, "dailyVolume": 2258459.17, "dailyTradeCount": 602}, {"date": "2025-01-13", "fgiValue": 61, "fgiClassification": "Greed", "dailyPnL": 9655.429352, "dailyVolume": 2936648.0100000002, "dailyTradeCount": 408}, {"date": "2025-01-14", "fgiValue": 63, "fgiClassification": "Greed", "dailyPnL": 16069.512355, "dailyVolume": 876581.97, "dailyTradeCount": 275}, {"date": "2025-01-15", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 14819.5883, "dailyVolume": 1801599.8900000001, "dailyTradeCount": 267}, {"date": "2025-01-16", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 20807.709328, "dailyVolume": 3049692.96, "dailyTradeCount": 371}, {"date": "2025-01-17", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 7006.415608, "dailyVolume": 1110230.46, "dailyTradeCount": 238}, {"date": "2025-01-18", "fgiValue": 77, "fgiClassification": "Extreme Greed", "dailyPnL": 443.2330819999997, "dailyVolume": 2711629.88, "dailyTradeCount": 651}, {"date": "2025-01-19", "fgiValue": 77, "fgiClassification": "Extreme Greed", "dailyPnL": 87923.799302, "dailyVolume": 9715215.3, "dailyTradeCount": 1567}, {"date": "2025-01-20", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 87277.239173, "dailyVolume": 8287327.01, "dailyTradeCount": 1315}, {"date": "2025-01-21", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 11077.839421, "dailyVolume": 1523729.82, "dailyTradeCount": 530}, {"date": "2025-01-22", "fgiValue": 84, "fgiClassification": "Extreme Greed", "dailyPnL": 20524.408057, "dailyVolume": 1778406.43, "dailyTradeCount": 832}, {"date": "2025-01-23", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 101256.24216, "dailyVolume": 3697028.66, "dailyTradeCount": 1218}, {"date": "2025-01-24", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": 10602.779738, "dailyVolume": 1611433.45, "dailyTradeCount": 874}, {"date": "2025-01-25", "fgiValue": 75, "fgiClassification": "Extreme Greed", "dailyPnL": -10348.016255999999, "dailyVolume": 1239377.7, "dailyTradeCount": 506}, {"date": "2025-01-26", "fgiValue": 73, "fgiClassification": "Greed", "dailyPnL": 40823.466668, "dailyVolume": 1201173.66, "dailyTradeCount": 451}, {"date": "2025-01-27", "fgiValue": 71, "fgiClassification": "Greed", "dailyPnL": 41331.765392, "dailyVolume": 1508028.31, "dailyTradeCount": 773}, {"date": "2025-01-28", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 17979.613973, "dailyVolume": 579412.17, "dailyTradeCount": 498}, {"date": "2025-01-29", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 23421.01147, "dailyVolume": 1897513.41, "dailyTradeCount": 910}, {"date": "2025-01-30", "fgiValue": 70, "fgiClassification": "Greed", "dailyPnL": 23097.471385, "dailyVolume": 3014397.17, "dailyTradeCount": 1067}, {"date": "2025-01-31", "fgiValue": 76, "fgiClassification": "Extreme Greed", "dailyPnL": 35868.296773, "dailyVolume": 2783411.48, "dailyTradeCount": 1016}, {"date": "2025-02-01", "fgiValue": 68, "fgiClassification": "Greed", "dailyPnL": 32300.205017, "dailyVolume": 1363746.44, "dailyTradeCount": 634}, {"date": "2025-02-02", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": 162854.759623, "dailyVolume": 5661092.29, "dailyTradeCount": 1319}, {"date": "2025-02-03", "fgiValue": 44, "fgiClassification": "Fear", "dailyPnL": 348871.326269, "dailyVolume": 22592901.37, "dailyTradeCount": 2380}, {"date": "2025-02-04", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": 416876.88812, "dailyVolume": 15678409.27, "dailyTradeCount": 2512}, {"date": "2025-02-05", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": 56706.235562, "dailyVolume": 8743231.51, "dailyTradeCount": 1297}, {"date": "2025-02-06", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 33803.799733, "dailyVolume": 2818508.87, "dailyTradeCount": 1703}, {"date": "2025-02-07", "fgiValue": 44, "fgiClassification": "Fear", "dailyPnL": 22450.002091, "dailyVolume": 3460263.54, "dailyTradeCount": 1524}, {"date": "2025-02-08", "fgiValue": 44, "fgiClassification": "Fear", "dailyPnL": 586.703253, "dailyVolume": 839734.97, "dailyTradeCount": 575}, {"date": "2025-02-09", "fgiValue": 46, "fgiClassification": "Neutral", "dailyPnL": 150551.829492, "dailyVolume": 2920919.7, "dailyTradeCount": 764}, {"date": "2025-02-10", "fgiValue": 43, "fgiClassification": "Fear", "dailyPnL": 63908.49465, "dailyVolume": 3624958.44, "dailyTradeCount": 889}, {"date": "2025-02-11", "fgiValue": 47, "fgiClassification": "Neutral", "dailyPnL": -6093.784817, "dailyVolume": 2797544.17, "dailyTradeCount": 848}, {"date": "2025-02-12", "fgiValue": 46, "fgiClassification": "Neutral", "dailyPnL": 19848.635032, "dailyVolume": 4143974.54, "dailyTradeCount": 1031}, {"date": "2025-02-13", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 27829.534238, "dailyVolume": 3199852.21, "dailyTradeCount": 1370}, {"date": "2025-02-14", "fgiValue": 48, "fgiClassification": "Neutral", "dailyPnL": 213860.675308, "dailyVolume": 4007103.42, "dailyTradeCount": 1655}, {"date": "2025-02-15", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 45042.92701, "dailyVolume": 1712852.95, "dailyTradeCount": 932}, {"date": "2025-02-16", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": 2369.478425, "dailyVolume": 806177.64, "dailyTradeCount": 681}, {"date": "2025-02-17", "fgiValue": 51, "fgiClassification": "Neutral", "dailyPnL": 1818.573295, "dailyVolume": 2031044.64, "dailyTradeCount": 941}, {"date": "2025-02-18", "fgiValue": 47, "fgiClassification": "Neutral", "dailyPnL": 91204.672403, "dailyVolume": 3371128.68, "dailyTradeCount": 1676}, {"date": "2025-02-19", "fgiValue": 44, "fgiClassification": "Fear", "dailyPnL": 14985.794701, "dailyVolume": 3263930.24, "dailyTradeCount": 1361}, {"date": "2025-02-20", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 46008.794102, "dailyVolume": 4628609.29, "dailyTradeCount": 2012}, {"date": "2025-02-21", "fgiValue": 55, "fgiClassification": "Greed", "dailyPnL": 119693.49395, "dailyVolume": 3972159.88, "dailyTradeCount": 1873}, {"date": "2025-02-22", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 25278.704178, "dailyVolume": 3175570.2, "dailyTradeCount": 686}, {"date": "2025-02-23", "fgiValue": 50, "fgiClassification": "Neutral", "dailyPnL": 10656.934251, "dailyVolume": 1141310.74, "dailyTradeCount": 520}, {"date": "2025-02-24", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 38470.176242, "dailyVolume": 11223619.59, "dailyTradeCount": 5616}, {"date": "2025-02-25", "fgiValue": 25, "fgiClassification": "Fear", "dailyPnL": 204762.177034, "dailyVolume": 19414984.36, "dailyTradeCount": 6246}, {"date": "2025-02-26", "fgiValue": 21, "fgiClassification": "Extreme Fear", "dailyPnL": 63229.063129, "dailyVolume": 4946958.13, "dailyTradeCount": 1176}, {"date": "2025-02-27", "fgiValue": 10, "fgiClassification": "Extreme Fear", "dailyPnL": -36525.167517, "dailyVolume": 1999898.43, "dailyTradeCount": 890}, {"date": "2025-02-28", "fgiValue": 16, "fgiClassification": "Extreme Fear", "dailyPnL": 225628.108748, "dailyVolume": 4123660.77, "dailyTradeCount": 1019}, {"date": "2025-03-01", "fgiValue": 20, "fgiClassification": "Extreme Fear", "dailyPnL": 10596.108968, "dailyVolume": 263824.13, "dailyTradeCount": 174}, {"date": "2025-03-02", "fgiValue": 26, "fgiClassification": "Fear", "dailyPnL": 66914.320708, "dailyVolume": 6460848.74, "dailyTradeCount": 532}, {"date": "2025-03-03", "fgiValue": 33, "fgiClassification": "Fear", "dailyPnL": 616413.032233, "dailyVolume": 8244590.38, "dailyTradeCount": 1482}, {"date": "2025-03-04", "fgiValue": 15, "fgiClassification": "Extreme Fear", "dailyPnL": 182075.566585, "dailyVolume": 11124247.15, "dailyTradeCount": 2402}, {"date": "2025-03-05", "fgiValue": 20, "fgiClassification": "Extreme Fear", "dailyPnL": 269328.365917, "dailyVolume": 9193654.22, "dailyTradeCount": 1660}, {"date": "2025-03-06", "fgiValue": 25, "fgiClassification": "Fear", "dailyPnL": 16101.125561, "dailyVolume": 6765324.96, "dailyTradeCount": 760}, {"date": "2025-03-07", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": 150236.061627, "dailyVolume": 19854275.48, "dailyTradeCount": 2552}, {"date": "2025-03-08", "fgiValue": 28, "fgiClassification": "Fear", "dailyPnL": 24700.773359, "dailyVolume": 892083.51, "dailyTradeCount": 529}, {"date": "2025-03-09", "fgiValue": 27, "fgiClassification": "Fear", "dailyPnL": 19773.457395, "dailyVolume": 10419697.99, "dailyTradeCount": 1422}, {"date": "2025-03-10", "fgiValue": 20, "fgiClassification": "Extreme Fear", "dailyPnL": -10010.027269999999, "dailyVolume": 16811790.68, "dailyTradeCount": 2911}, {"date": "2025-03-11", "fgiValue": 24, "fgiClassification": "Extreme Fear", "dailyPnL": -76880.729036, "dailyVolume": 14016952.09, "dailyTradeCount": 3286}, {"date": "2025-03-12", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": 288105.984215, "dailyVolume": 18618139.15, "dailyTradeCount": 3968}, {"date": "2025-03-13", "fgiValue": 45, "fgiClassification": "Neutral", "dailyPnL": 14114.870873, "dailyVolume": 3285591.22, "dailyTradeCount": 962}, {"date": "2025-03-14", "fgiValue": 27, "fgiClassification": "Fear", "dailyPnL": 68646.160089, "dailyVolume": 8047187.16, "dailyTradeCount": 2210}, {"date": "2025-03-15", "fgiValue": 46, "fgiClassification": "Neutral", "dailyPnL": 78694.624572, "dailyVolume": 2355749.54, "dailyTradeCount": 261}, {"date": "2025-03-16", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": -7910.943544999999, "dailyVolume": 10187921.51, "dailyTradeCount": 530}, {"date": "2025-03-17", "fgiValue": 32, "fgiClassification": "Fear", "dailyPnL": 26163.906513, "dailyVolume": 3592895.05, "dailyTradeCount": 920}, {"date": "2025-03-18", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": 72322.788824, "dailyVolume": 4050655.47, "dailyTradeCount": 834}, {"date": "2025-03-19", "fgiValue": 32, "fgiClassification": "Fear", "dailyPnL": 29374.682341, "dailyVolume": 4598813.57, "dailyTradeCount": 1612}, {"date": "2025-03-20", "fgiValue": 49, "fgiClassification": "Neutral", "dailyPnL": 10246.859436, "dailyVolume": 1652257.93, "dailyTradeCount": 771}, {"date": "2025-03-21", "fgiValue": 31, "fgiClassification": "Fear", "dailyPnL": 6951.270374, "dailyVolume": 2543903.39, "dailyTradeCount": 698}, {"date": "2025-03-22", "fgiValue": 32, "fgiClassification": "Fear", "dailyPnL": 12498.535254, "dailyVolume": 971809.42, "dailyTradeCount": 535}, {"date": "2025-03-23", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": 14047.421585, "dailyVolume": 2593519.67, "dailyTradeCount": 447}, {"date": "2025-03-24", "fgiValue": 45, "fgiClassification": "Neutral", "dailyPnL": 107878.961301, "dailyVolume": 3017587.05, "dailyTradeCount": 1027}, {"date": "2025-03-25", "fgiValue": 46, "fgiClassification": "Neutral", "dailyPnL": 32030.90678, "dailyVolume": 5372519.77, "dailyTradeCount": 791}, {"date": "2025-03-26", "fgiValue": 47, "fgiClassification": "Neutral", "dailyPnL": 15802.167427, "dailyVolume": 7597754.37, "dailyTradeCount": 3102}, {"date": "2025-03-27", "fgiValue": 40, "fgiClassification": "Fear", "dailyPnL": 58825.359221, "dailyVolume": 3240279.46, "dailyTradeCount": 785}, {"date": "2025-03-28", "fgiValue": 44, "fgiClassification": "Fear", "dailyPnL": 21337.179335, "dailyVolume": 1483092.61, "dailyTradeCount": 728}, {"date": "2025-03-29", "fgiValue": 26, "fgiClassification": "Fear", "dailyPnL": 12098.872931, "dailyVolume": 3668151.83, "dailyTradeCount": 1894}, {"date": "2025-03-30", "fgiValue": 32, "fgiClassification": "Fear", "dailyPnL": 15795.11514, "dailyVolume": 2850874.96, "dailyTradeCount": 568}, {"date": "2025-03-31", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": 6978.184557, "dailyVolume": 2164772.4699999997, "dailyTradeCount": 495}, {"date": "2025-04-01", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": -2202.6622420000003, "dailyVolume": 704445.1900000001, "dailyTradeCount": 192}, {"date": "2025-04-02", "fgiValue": 44, "fgiClassification": "Fear", "dailyPnL": 202212.740938, "dailyVolume": 3867930.6, "dailyTradeCount": 1076}, {"date": "2025-04-03", "fgiValue": 25, "fgiClassification": "Fear", "dailyPnL": -2365.961276, "dailyVolume": 8670233.15, "dailyTradeCount": 1748}, {"date": "2025-04-04", "fgiValue": 28, "fgiClassification": "Fear", "dailyPnL": -25515.678949999998, "dailyVolume": 3835545.73, "dailyTradeCount": 1272}, {"date": "2025-04-05", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": 35907.33771, "dailyVolume": 1267564.22, "dailyTradeCount": 360}, {"date": "2025-04-06", "fgiValue": 34, "fgiClassification": "Fear", "dailyPnL": 47053.449272, "dailyVolume": 3551252.06, "dailyTradeCount": 1048}, {"date": "2025-04-07", "fgiValue": 23, "fgiClassification": "Extreme Fear", "dailyPnL": 34527.370305, "dailyVolume": 14460253.14, "dailyTradeCount": 2814}, {"date": "2025-04-08", "fgiValue": 24, "fgiClassification": "Extreme Fear", "dailyPnL": 34899.394798, "dailyVolume": 8869391.4, "dailyTradeCount": 943}, {"date": "2025-04-09", "fgiValue": 18, "fgiClassification": "Extreme Fear", "dailyPnL": 43120.444797, "dailyVolume": 28556806.47, "dailyTradeCount": 3967}, {"date": "2025-04-10", "fgiValue": 39, "fgiClassification": "Fear", "dailyPnL": 158261.822261, "dailyVolume": 28741953.29, "dailyTradeCount": 2127}, {"date": "2025-04-11", "fgiValue": 25, "fgiClassification": "Fear", "dailyPnL": 126406.479081, "dailyVolume": 11319327.07, "dailyTradeCount": 1096}, {"date": "2025-04-12", "fgiValue": 43, "fgiClassification": "Fear", "dailyPnL": 410419.694533, "dailyVolume": 55914617.49, "dailyTradeCount": 2109}, {"date": "2025-04-13", "fgiValue": 45, "fgiClassification": "Neutral", "dailyPnL": 48696.021521, "dailyVolume": 14171154.79, "dailyTradeCount": 1321}, {"date": "2025-04-14", "fgiValue": 31, "fgiClassification": "Fear", "dailyPnL": 45680.443063, "dailyVolume": 13079972.98, "dailyTradeCount": 890}, {"date": "2025-04-15", "fgiValue": 38, "fgiClassification": "Fear", "dailyPnL": 72357.706282, "dailyVolume": 20752168.24, "dailyTradeCount": 1131}, {"date": "2025-04-16", "fgiValue": 29, "fgiClassification": "Fear", "dailyPnL": 58631.730257, "dailyVolume": 36502715.9, "dailyTradeCount": 1608}, {"date": "2025-04-17", "fgiValue": 30, "fgiClassification": "Fear", "dailyPnL": 5427.919886, "dailyVolume": 2604551.51, "dailyTradeCount": 1031}, {"date": "2025-04-18", "fgiValue": 33, "fgiClassification": "Fear", "dailyPnL": 4880.4047439999995, "dailyVolume": 24610650.46, "dailyTradeCount": 1894}, {"date": "2025-04-19", "fgiValue": 32, "fgiClassification": "Fear", "dailyPnL": 71950.577495, "dailyVolume": 32706462.71, "dailyTradeCount": 2786}, {"date": "2025-04-20", "fgiValue": 37, "fgiClassification": "Fear", "dailyPnL": 25060.341936, "dailyVolume": 12126094.05, "dailyTradeCount": 1982}, {"date": "2025-04-21", "fgiValue": 39, "fgiClassification": "Fear", "dailyPnL": 34369.267906999994, "dailyVolume": 42104054.84, "dailyTradeCount": 1718}, {"date": "2025-04-22", "fgiValue": 47, "fgiClassification": "Neutral", "dailyPnL": 58652.763578, "dailyVolume": 33753625.24, "dailyTradeCount": 2998}, {"date": "2025-04-23", "fgiValue": 72, "fgiClassification": "Greed", "dailyPnL": -419020.225731, "dailyVolume": 30682443.79, "dailyTradeCount": 6159}, {"date": "2025-04-24", "fgiValue": 63, "fgiClassification": "Greed", "dailyPnL": 50704.395965, "dailyVolume": 35088918.64, "dailyTradeCount": 2232}, {"date": "2025-04-25", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": 20218.859206, "dailyVolume": 27749455.78, "dailyTradeCount": 1653}, {"date": "2025-04-26", "fgiValue": 65, "fgiClassification": "Greed", "dailyPnL": -4125.753942, "dailyVolume": 11948127.77, "dailyTradeCount": 1131}, {"date": "2025-04-27", "fgiValue": 61, "fgiClassification": "Greed", "dailyPnL": 2702.067468, "dailyVolume": 487537.69, "dailyTradeCount": 337}, {"date": "2025-04-28", "fgiValue": 54, "fgiClassification": "Neutral", "dailyPnL": 36906.813759, "dailyVolume": 26124921.49, "dailyTradeCount": 1379}, {"date": "2025-04-29", "fgiValue": 60, "fgiClassification": "Greed", "dailyPnL": 125749.613427, "dailyVolume": 34089511.66, "dailyTradeCount": 2243}, {"date": "2025-04-30", "fgiValue": 56, "fgiClassification": "Greed", "dailyPnL": 14003.797269, "dailyVolume": 12693878.85, "dailyTradeCount": 1113}, {"date": "2025-05-01", "fgiValue": 53, "fgiClassification": "Neutral", "dailyPnL": 54536.829297000004, "dailyVolume": 10720240.52, "dailyTradeCount": 1230}]};
+
+const D = typeof dashboardData !== 'undefined' ? dashboardData : {
+    overallMetrics:{totalTrades:0,totalPnL:0,totalVolume:0,winRate:0,totalFee:0},
+    sentimentStats:{},traders:[],coins:{},dailyTrading:[]
+};
+
+/* ---- helpers ---- */
+function fmtUSD(v){
+    const s = v < 0 ? '-' : '';
+    const a = Math.abs(v);
+    if(a >= 1e9) return s+'$'+(a/1e9).toFixed(2)+'B';
+    if(a >= 1e6) return s+'$'+(a/1e6).toFixed(2)+'M';
+    if(a >= 1e3) return s+'$'+(a/1e3).toFixed(1)+'k';
+    return s+'$'+a.toFixed(2);
+}
+function fmtN(v){ return Number(v).toLocaleString('en-US'); }
+function fmtPct(v){ return (v*100).toFixed(1)+'%'; }
+function shortAddr(a){ return a.slice(0,6)+'…'+a.slice(-4); }
+
+const SENT_ORDER = ['Extreme Fear','Fear','Neutral','Greed','Extreme Greed'];
+const SENT_COLORS = {
+    'Extreme Fear':'#f87171','Fear':'#fb923c','Neutral':'#a78bfa','Greed':'#4ade80','Extreme Greed':'#34d399'
+};
+
+const chartDefaults = {
+    color: 'rgba(255,255,255,0.65)',
+    font: { family: 'Inter' }
+};
+
+/* ---- chart instances ---- */
+let chTraderDir=null, chSentAct=null, chCoin=null, chGroup=null, chScatter=null;
+
+/* ---- boot ---- */
+document.addEventListener('DOMContentLoaded', ()=>{
+    // KPIs
+    document.getElementById('kpi-pnl').textContent = fmtUSD(D.overallMetrics.totalPnL);
+    document.getElementById('kpi-vol').textContent = fmtUSD(D.overallMetrics.totalVolume);
+    document.getElementById('kpi-trades').textContent = fmtN(D.overallMetrics.totalTrades);
+    document.getElementById('kpi-wr').textContent = fmtPct(D.overallMetrics.winRate);
+
+    initTraderProfiler();
+    initSentimentActivity();
+    initCoinTabs();
+    initGroupChart();
+    initScatter();
+    initLeaderboard();
+});
+
+/* ---- TRADER PROFILER ---- */
+function initTraderProfiler(){
+    const sel = document.getElementById('sel-trader');
+    sel.innerHTML = '';
+    D.traders.forEach((t,i)=>{
+        const o = document.createElement('option');
+        o.value = t.account;
+        o.textContent = `#${i+1} ${shortAddr(t.account)}  (${fmtUSD(t.totalPnL)})`;
+        sel.appendChild(o);
+    });
+    sel.addEventListener('change', e => showTrader(e.target.value));
+    if(D.traders.length) showTrader(D.traders[0].account);
+}
+
+function showTrader(acct){
+    const t = D.traders.find(x=>x.account===acct);
+    if(!t) return;
+
+    document.getElementById('p-addr').textContent = t.account;
+    document.getElementById('p-desc').textContent = t.description;
+
+    const pnlEl = document.getElementById('p-pnl');
+    pnlEl.textContent = fmtUSD(t.totalPnL);
+    pnlEl.className = 'mini-stat-val ' + (t.totalPnL > 0 ? 'up' : 'down');
+
+    const wrEl = document.getElementById('p-wr');
+    wrEl.textContent = fmtPct(t.winRate);
+    wrEl.className = 'mini-stat-val ' + (t.winRate >= 0.7 ? 'up' : t.winRate < 0.5 ? 'down' : '');
+
+    document.getElementById('p-cnt').textContent = fmtN(t.trades);
+    document.getElementById('p-vol').textContent = fmtUSD(t.volume);
+
+    const bg = document.getElementById('p-badge');
+    bg.textContent = t.profileType;
+    bg.className = 'badge ' + (t.totalPnL > 0 ? 'win' : 'loss');
+
+    // chart
+    const bull = [], bear = [];
+    SENT_ORDER.forEach(s=>{
+        const st = t.sentimentStats[s];
+        bull.push(st ? +(st.bullishPct*100).toFixed(1) : 0);
+        bear.push(st ? +(st.bearishPct*100).toFixed(1) : 0);
+    });
+
+    if(chTraderDir) chTraderDir.destroy();
+    chTraderDir = new Chart(document.getElementById('chartTraderDir'),{
+        type:'bar',
+        data:{
+            labels: SENT_ORDER,
+            datasets:[
+                {label:'Bullish %', data:bull, backgroundColor:'rgba(16,185,129,0.7)', borderColor:'#10b981', borderWidth:1, borderRadius:4},
+                {label:'Bearish %', data:bear, backgroundColor:'rgba(239,68,68,0.7)', borderColor:'#ef4444', borderWidth:1, borderRadius:4}
+            ]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{
+                legend:{labels:{...chartDefaults}},
+                tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw+'%'}}
+            },
+            scales:{
+                x:{grid:{display:false}, ticks:{...chartDefaults, maxRotation:35}},
+                y:{max:100, grid:{color:'rgba(255,255,255,0.04)'}, ticks:{...chartDefaults, callback:v=>v+'%'}}
+            }
+        }
+    });
+}
+
+function cpAddr(){
+    navigator.clipboard.writeText(document.getElementById('p-addr').textContent);
+    const t = document.getElementById('toast');
+    t.style.display='flex';
+    setTimeout(()=>{t.style.display='none';},2000);
+}
+
+/* ---- SENTIMENT ACTIVITY ---- */
+function initSentimentActivity(){
+    const counts=[], vols=[];
+    SENT_ORDER.forEach(s=>{
+        const st = D.sentimentStats[s];
+        counts.push(st ? st.trades : 0);
+        vols.push(st ? +(st.volume/1e6).toFixed(1) : 0);
+    });
+
+    chSentAct = new Chart(document.getElementById('chartSentAct'),{
+        type:'bar',
+        data:{
+            labels:SENT_ORDER,
+            datasets:[
+                {label:'Trades', data:counts, backgroundColor:'rgba(139,92,246,0.55)', borderColor:'#8b5cf6', borderWidth:1, borderRadius:4, yAxisID:'y'},
+                {label:'Volume ($M)', data:vols, backgroundColor:'rgba(6,182,212,0.55)', borderColor:'#06b6d4', borderWidth:2, type:'line', yAxisID:'y1', tension:0.3, pointRadius:4, pointBackgroundColor:'#06b6d4'}
+            ]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{legend:{labels:{...chartDefaults}}},
+            scales:{
+                x:{grid:{display:false}, ticks:{...chartDefaults, maxRotation:35}},
+                y:{position:'left', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{...chartDefaults}},
+                y1:{position:'right', grid:{drawOnChartArea:false}, ticks:{...chartDefaults, callback:v=>'$'+v+'M'}}
+            }
+        }
+    });
+}
+
+/* ---- COIN ANALYSIS ---- */
+let activeCoin = 'HYPE';
+const TOP_COINS = ['HYPE','BTC','ETH','SOL','@107'];
+
+function initCoinTabs(){
+    const ct = document.getElementById('coinTabs');
+    ct.innerHTML='';
+    TOP_COINS.forEach(c=>{
+        const b = document.createElement('button');
+        b.className = 'tab'+(c===activeCoin?' on':'');
+        b.textContent = c;
+        b.addEventListener('click',()=>{
+            ct.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+            b.classList.add('on');
+            activeCoin=c;
+            renderCoin();
+        });
+        ct.appendChild(b);
+    });
+    renderCoin();
+}
+
+function renderCoin(){
+    const cd = D.coins[activeCoin];
+    if(!cd) return;
+
+    const pnlEl = document.getElementById('c-pnl');
+    pnlEl.textContent = fmtUSD(cd.totalPnL);
+    pnlEl.style.color = cd.totalPnL > 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+
+    document.getElementById('c-wr').textContent = fmtPct(cd.winRate);
+    document.getElementById('c-vol').textContent = fmtUSD(cd.volume);
+    document.getElementById('c-cnt').textContent = fmtN(cd.trades);
+
+    const vals=[];
+    SENT_ORDER.forEach(s=>{
+        const st = cd.sentimentStats[s];
+        vals.push(st ? st.totalPnL : 0);
+    });
+
+    if(chCoin) chCoin.destroy();
+    chCoin = new Chart(document.getElementById('chartCoin'),{
+        type:'bar',
+        data:{
+            labels:SENT_ORDER,
+            datasets:[{
+                label: activeCoin+' PnL',
+                data:vals,
+                backgroundColor: vals.map(v=>v>0?'rgba(16,185,129,0.65)':'rgba(239,68,68,0.65)'),
+                borderColor: vals.map(v=>v>0?'#10b981':'#ef4444'),
+                borderWidth:1, borderRadius:4
+            }]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>'PnL: '+fmtUSD(c.raw)}}},
+            scales:{
+                x:{grid:{display:false}, ticks:{...chartDefaults, maxRotation:35}},
+                y:{grid:{color:'rgba(255,255,255,0.04)'}, ticks:{...chartDefaults, callback:v=>fmtUSD(v)}}
+            }
+        }
+    });
+}
+
+/* ---- GROUP COMPARISON (compute from data) ---- */
+function initGroupChart(){
+    // compute mean PnL per sentiment for profitable vs unprofitable groups
+    const profMean = [], unprofMean = [];
+
+    SENT_ORDER.forEach(sent => {
+        let profSum=0, profN=0, unprofSum=0, unprofN=0;
+        D.traders.forEach(t => {
+            const st = t.sentimentStats[sent];
+            if(!st || st.trades === 0) return;
+            if(t.totalPnL > 0) { profSum += st.meanPnL * st.trades; profN += st.trades; }
+            else { unprofSum += st.meanPnL * st.trades; unprofN += st.trades; }
+        });
+        profMean.push(profN > 0 ? +(profSum/profN).toFixed(2) : 0);
+        unprofMean.push(unprofN > 0 ? +(unprofSum/unprofN).toFixed(2) : 0);
+    });
+
+    chGroup = new Chart(document.getElementById('chartGroup'),{
+        type:'bar',
+        data:{
+            labels:SENT_ORDER,
+            datasets:[
+                {label:'Profitable (29 accts)', data:profMean, backgroundColor:'rgba(16,185,129,0.7)', borderColor:'#10b981', borderWidth:1, borderRadius:4},
+                {label:'Losing (3 accts)', data:unprofMean, backgroundColor:'rgba(239,68,68,0.7)', borderColor:'#ef4444', borderWidth:1, borderRadius:4}
+            ]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{
+                legend:{labels:{...chartDefaults}},
+                tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.raw.toFixed(2)+' / trade'}}
+            },
+            scales:{
+                x:{grid:{display:false}, ticks:{...chartDefaults, maxRotation:35}},
+                y:{grid:{color:'rgba(255,255,255,0.04)'}, ticks:{...chartDefaults, callback:v=>'$'+v}}
+            }
+        }
+    });
+}
+
+/* ---- SCATTER ---- */
+function initScatter(){
+    const pts = D.dailyTrading.map(d=>({
+        x: d.fgiValue,
+        y: d.dailyPnL,
+        r: Math.max(3, Math.min(14, d.dailyTradeCount / 80)),
+        date: d.date,
+        vol: d.dailyVolume,
+        cnt: d.dailyTradeCount
+    }));
+
+    chScatter = new Chart(document.getElementById('chartScatter'),{
+        type:'bubble',
+        data:{
+            datasets:[{
+                label:'Daily Performance',
+                data:pts,
+                backgroundColor(ctx){ return ctx.raw && ctx.raw.y > 0 ? 'rgba(16,185,129,0.5)' : 'rgba(239,68,68,0.5)'; },
+                borderColor(ctx){ return ctx.raw && ctx.raw.y > 0 ? '#10b981' : '#ef4444'; },
+                borderWidth:1
+            }]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{
+                legend:{display:false},
+                tooltip:{callbacks:{label(ctx){
+                    const p=ctx.raw;
+                    return [`Date: ${p.date}`,`FGI: ${p.x}`,`PnL: ${fmtUSD(p.y)}`,`Trades: ${fmtN(p.cnt)}`];
+                }}}
+            },
+            scales:{
+                x:{min:0, max:100,
+                    title:{display:true, text:'Fear & Greed Index', ...chartDefaults},
+                    grid:{color:'rgba(255,255,255,0.04)'}, ticks:{...chartDefaults}},
+                y:{title:{display:true, text:'Daily Closed PnL (USD)', ...chartDefaults},
+                    grid:{color:'rgba(255,255,255,0.04)'}, ticks:{...chartDefaults, callback:v=>fmtUSD(v)}}
+            }
+        }
+    });
+}
+
+/* ---- LEADERBOARD ---- */
+function initLeaderboard(){
+    const tb = document.getElementById('lb-body');
+    tb.innerHTML = '';
+    D.traders.forEach((t,i)=>{
+        const tr = document.createElement('tr');
+        const rc = i===0?'rank-gold':i===1?'rank-silver':i===2?'rank-bronze':'';
+        const pc = t.totalPnL > 0 ? 'pnl-up' : 'pnl-down';
+        const bc = t.totalPnL > 0 ? 'badge win' : 'badge loss';
+
+        tr.innerHTML = `
+            <td><span class="rank-num ${rc}">${i+1}</span></td>
+            <td><span class="addr-chip" style="font-size:0.78rem;padding:3px 8px">${shortAddr(t.account)}</span></td>
+            <td class="mono">${fmtN(t.trades)}</td>
+            <td class="mono">${fmtPct(t.winRate)}</td>
+            <td class="mono">${fmtUSD(t.volume)}</td>
+            <td class="mono">${fmtUSD(t.fee)}</td>
+            <td><span class="${bc}" style="font-size:0.7rem;padding:3px 8px">${t.profileType}</span></td>
+            <td class="mono fw700 ${pc}">${fmtUSD(t.totalPnL)}</td>
+        `;
+        tb.appendChild(tr);
+    });
+}
+</script>
+</body>
+</html>
